@@ -33,6 +33,7 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
     private readonly IArCustomerGroupService _arCustomerGroupService;
     private readonly IArItemService _arItemService;
     private readonly IArDocumentsService _arDocumentsService;
+    private readonly IArStatementRunService _arStatementRunService;
 
     public AccpacOperationExecutor(
         IApVendorService apVendorService,
@@ -55,7 +56,8 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
         IArShipToLocationService arShipToLocationService,
         IArCustomerGroupService arCustomerGroupService,
         IArItemService arItemService,
-        IArDocumentsService arDocumentsService)
+        IArDocumentsService arDocumentsService,
+        IArStatementRunService arStatementRunService)
     {
         _apVendorService = apVendorService;
         _apVendorGroupService = apVendorGroupService;
@@ -78,6 +80,7 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
         _arCustomerGroupService = arCustomerGroupService;
         _arItemService = arItemService;
         _arDocumentsService = arDocumentsService;
+        _arStatementRunService = arStatementRunService;
     }
 
     public async Task<AccpacOperationResult> ExecuteAsync(
@@ -589,6 +592,19 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
 
                     var (response, analysis) = await _arDocumentsService.GetAgedBalancesAsync(customer, user, cancellationToken);
                     return new AccpacOperationResult(response, new { agedAnalysis = analysis });
+                }
+                case "api/ARCustomer/ReadARStatementRun":
+                case "api/ARStatementRun/ReadARStatementRun":
+                {
+                    var req = DeserializeOrThrow<ARStatementRun>(input);
+                    var (response, statementRun) = await _arStatementRunService.ReadAsync(req, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { statementRun });
+                }
+                case "api/ARCustomer/Read_ARStatementRun":
+                case "api/ARStatementRun/Read_ARStatementRun":
+                {
+                    var (response, sync) = await _arStatementRunService.ReadAllAsync(user, cancellationToken);
+                    return new AccpacOperationResult(response, new { sync });
                 }
                 default:
                     return new AccpacOperationResult(

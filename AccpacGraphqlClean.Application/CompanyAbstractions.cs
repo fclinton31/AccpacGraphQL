@@ -378,3 +378,15 @@ public interface IArDocumentsService
         ClaimsPrincipal user,
         CancellationToken cancellationToken);
 }
+
+public interface IArStatementRunService
+{
+    Task<(ProcessOut Response, ARStatementRun StatementRun)> ReadAsync(
+        ARStatementRun request,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken);
+
+    Task<(ProcessOut Response, SyncARStatement Sync)> ReadAllAsync(
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken);
+}

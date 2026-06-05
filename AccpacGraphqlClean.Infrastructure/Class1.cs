@@ -47,6 +47,7 @@ public static class DependencyInjection
         services.AddScoped<IArCustomerGroupService, Sage300ArCustomerGroupService>();
         services.AddScoped<IArItemService, Sage300ArItemService>();
         services.AddScoped<IArDocumentsService, Sage300ArDocumentsService>();
+        services.AddScoped<IArStatementRunService, Sage300ArStatementRunService>();
 
         return services;
     }
