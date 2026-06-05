@@ -5,6 +5,7 @@ using AccpacGraphqlClean.Application;
 using AccpacGraphqlClean.Domain;
 using AccpacGraphqlClean.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -48,6 +49,57 @@ builder.Services
     .AddTypeExtension<AccpacMutationOperationsTypeExtension>();
 
 var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<SettingsDbContext>();
+    await db.Database.EnsureCreatedAsync();
+
+    var bootstrapUserName = builder.Configuration["Bootstrap:UserName"];
+    var bootstrapPassword = builder.Configuration["Bootstrap:Password"];
+    var bootstrapEmail = builder.Configuration["Bootstrap:Email"] ?? "admin@local";
+    var bootstrapRole = builder.Configuration["Bootstrap:Role"] ?? "IntegrationUser";
+
+    var bootstrapCompanyKey = builder.Configuration["Bootstrap:CompanyKey"];
+    var bootstrapCompanyId = builder.Configuration["Bootstrap:CompanyId"];
+    var bootstrapSageUser = builder.Configuration["Bootstrap:SageUserName"];
+    var bootstrapSagePassword = builder.Configuration["Bootstrap:SagePassword"];
+
+    if (!string.IsNullOrWhiteSpace(bootstrapUserName) && !string.IsNullOrWhiteSpace(bootstrapPassword))
+    {
+        var existingUser = await db.Users.SingleOrDefaultAsync(u => u.UserName == bootstrapUserName);
+        if (existingUser is null)
+        {
+            db.Users.Add(new UserAccount
+            {
+                UserName = bootstrapUserName,
+                Email = bootstrapEmail,
+                PasswordHash = PasswordHasher.Hash(bootstrapPassword),
+                Role = bootstrapRole
+            });
+        }
+    }
+
+    if (!string.IsNullOrWhiteSpace(bootstrapCompanyKey)
+        && !string.IsNullOrWhiteSpace(bootstrapCompanyId)
+        && !string.IsNullOrWhiteSpace(bootstrapSageUser)
+        && !string.IsNullOrWhiteSpace(bootstrapSagePassword))
+    {
+        var existingCompany = await db.Companies.SingleOrDefaultAsync(c => c.CompanyKey == bootstrapCompanyKey);
+        if (existingCompany is null)
+        {
+            db.Companies.Add(new Company
+            {
+                CompanyKey = bootstrapCompanyKey,
+                CompanyId = bootstrapCompanyId,
+                UserName = bootstrapSageUser,
+                Password = bootstrapSagePassword
+            });
+        }
+    }
+
+    await db.SaveChangesAsync();
+}
 
 app.UseRouting();
 app.UseAuthentication();

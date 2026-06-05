@@ -12,6 +12,17 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
         PropertyNameCaseInsensitive = true
     };
 
+    private static JsonElement Data(params (string Key, object? Value)[] items)
+    {
+        var dict = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (key, value) in items)
+        {
+            dict[key] = value;
+        }
+
+        return JsonSerializer.SerializeToElement(dict, JsonOptions);
+    }
+
     private readonly IApVendorService _apVendorService;
     private readonly IApVendorGroupService _apVendorGroupService;
     private readonly IApPaymentCodeService _apPaymentCodeService;
@@ -97,67 +108,67 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
                 {
                     var vendor = DeserializeOrThrow<APVendor>(input);
                     var (response, saved) = await _apVendorService.CreateOrUpdateAsync(vendor, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { vendor = saved });
+                    return new AccpacOperationResult(response, Data(("vendor", saved)));
                 }
                 case "api/APVendor/ReadAPVendor":
                 {
                     var vendorNumber = ExtractKey(input, "VendorNumber000");
                     var (response, vendor) = await _apVendorService.ReadAsync(vendorNumber, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { vendor });
+                    return new AccpacOperationResult(response, Data(("vendor", vendor)));
                 }
                 case "api/APVendorGroup/CreateAPVendorGroups":
                 case "api/APVendorGroup/UpdateAPVendorGroups":
                 {
                     var vendorGroup = DeserializeOrThrow<APVendorGroup>(input);
                     var (response, saved) = await _apVendorGroupService.CreateOrUpdateAsync(vendorGroup, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { vendorGroup = saved });
+                    return new AccpacOperationResult(response, Data(("vendorGroup", saved)));
                 }
                 case "api/APPaymentCode/CreateAPPaymentCodes":
                 case "api/APPaymentCode/UpdateAPPaymentCodes":
                 {
                     var paymentCode = DeserializeOrThrow<APPaymentCodes>(input);
                     var (response, saved) = await _apPaymentCodeService.CreateOrUpdateAsync(paymentCode, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { paymentCode = saved });
+                    return new AccpacOperationResult(response, Data(("paymentCode", saved)));
                 }
                 case "api/APPaymentTerms/CreateAPPaymentTerms":
                 case "api/APPaymentTerms/UpdateAPPaymentTerms":
                 {
                     var paymentTerms = DeserializeOrThrow<APPaymentTerms>(input);
                     var (response, saved) = await _apPaymentTermsService.CreateOrUpdateAsync(paymentTerms, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { paymentTerms = saved });
+                    return new AccpacOperationResult(response, Data(("paymentTerms", saved)));
                 }
                 case "api/APRemitToLocation/CreateAPRemitToLocations":
                 case "api/APRemitToLocation/UpdateAPRemitToLocations":
                 {
                     var remit = DeserializeOrThrow<APRemitToLocations>(input);
                     var (response, saved) = await _apRemitToLocationsService.CreateOrUpdateAsync(remit, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { remitToLocations = saved });
+                    return new AccpacOperationResult(response, Data(("remitToLocations", saved)));
                 }
                 case "api/APRecurringPayable/CreateAPRecurringPayables":
                 case "api/APRecurringPayable/UpdateAPRecurringPayables":
                 {
                     var recurring = DeserializeOrThrow<APRecurringPayables>(input);
                     var (response, saved) = await _apRecurringPayablesService.CreateOrUpdateAsync(recurring, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { recurringPayables = saved });
+                    return new AccpacOperationResult(response, Data(("recurringPayables", saved)));
                 }
                 case "api/APInvoice/CreateInvoice":
                 {
                     var invoice = DeserializeOrThrow<APInvoices>(input);
                     var (response, saved) = await _apInvoiceService.CreateInvoiceAsync(invoice, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { invoices = saved });
+                    return new AccpacOperationResult(response, Data(("invoices", saved)));
                 }
                 case "api/APInvoice/CreateInvoiceBatch":
                 {
                     var batch = DeserializeOrThrow<APInvoiceBatch>(input);
                     var (response, saved) = await _apInvoiceService.CreateInvoiceBatchAsync(batch, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { invoices = saved });
+                    return new AccpacOperationResult(response, Data(("invoices", saved)));
                 }
                 case "api/APInvoice/ReadInvoice":
                 {
                     var json = input as string;
                     if (string.IsNullOrWhiteSpace(json))
                     {
-                        return new AccpacOperationResult(ProcessOut.Fail("9999", "inputJson is required."), new { restRoute });
+                        return new AccpacOperationResult(ProcessOut.Fail("9999", "inputJson is required."), Data(("restRoute", restRoute)));
                     }
 
                     using var doc = JsonDocument.Parse(json);
@@ -165,48 +176,48 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
                     var entryNumber = doc.RootElement.TryGetProperty("EntryNumber", out var en) ? en.GetString() : null;
                     if (string.IsNullOrWhiteSpace(batchNumber) || string.IsNullOrWhiteSpace(entryNumber))
                     {
-                        return new AccpacOperationResult(ProcessOut.Fail("9999", "BatchNumber and EntryNumber are required."), new { restRoute });
+                        return new AccpacOperationResult(ProcessOut.Fail("9999", "BatchNumber and EntryNumber are required."), Data(("restRoute", restRoute)));
                     }
 
                     var (response, invoice) = await _apInvoiceService.ReadInvoiceAsync(batchNumber, entryNumber, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { invoices = invoice });
+                    return new AccpacOperationResult(response, Data(("invoices", invoice)));
                 }
                 case "api/APInvoice/ReadInvoiceBatchStatus":
                 {
                     var batchNumber = ExtractKey(input, "BatchNumber");
                     var (response, batch) = await _apInvoiceService.ReadInvoiceBatchStatusAsync(batchNumber, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { InvoiceBatch = batch });
+                    return new AccpacOperationResult(response, Data(("InvoiceBatch", batch)));
                 }
                 case "api/APInvoice/ReadInvoiceBatch":
                 {
                     var batchNumber = ExtractKey(input, "BatchNumber");
                     var (response, batch) = await _apInvoiceService.ReadInvoiceBatchAsync(batchNumber, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { InvoiceBatch = batch });
+                    return new AccpacOperationResult(response, Data(("InvoiceBatch", batch)));
                 }
                 case "api/APInvoice/SyncInvoices":
                 {
                     var req = DeserializeOrThrow<SyncAPInvoices>(input);
                     var (response, sync) = await _apInvoiceService.SyncInvoicesAsync(req, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { sync });
+                    return new AccpacOperationResult(response, Data(("sync", sync)));
                 }
                 case "api/APPayment/CreatePayment":
                 {
                     var payment = DeserializeOrThrow<APPayment>(input);
                     var (response, saved) = await _apPaymentService.CreatePaymentAsync(payment, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { payment = saved });
+                    return new AccpacOperationResult(response, Data(("payment", saved)));
                 }
                 case "api/APPayment/CreatePaymentBatch":
                 {
                     var paymentBatch = DeserializeOrThrow<APPaymentBatch>(input);
                     var (response, saved) = await _apPaymentService.CreatePaymentBatchAsync(paymentBatch, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { paymentBatch = saved });
+                    return new AccpacOperationResult(response, Data(("paymentBatch", saved)));
                 }
                 case "api/APPayment/ReadPayment":
                 {
                     var json = input as string;
                     if (string.IsNullOrWhiteSpace(json))
                     {
-                        return new AccpacOperationResult(ProcessOut.Fail("9999", "inputJson is required."), new { restRoute });
+                        return new AccpacOperationResult(ProcessOut.Fail("9999", "inputJson is required."), Data(("restRoute", restRoute)));
                     }
 
                     using var doc = JsonDocument.Parse(json);
@@ -214,42 +225,42 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
                     var entryNumber = doc.RootElement.TryGetProperty("EntryNumber", out var en) ? en.GetString() : null;
                     if (string.IsNullOrWhiteSpace(batchNumber) || string.IsNullOrWhiteSpace(entryNumber))
                     {
-                        return new AccpacOperationResult(ProcessOut.Fail("9999", "BatchNumber and EntryNumber are required."), new { restRoute });
+                        return new AccpacOperationResult(ProcessOut.Fail("9999", "BatchNumber and EntryNumber are required."), Data(("restRoute", restRoute)));
                     }
 
                     var (response, payment) = await _apPaymentService.ReadPaymentAsync(batchNumber, entryNumber, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { payment });
+                    return new AccpacOperationResult(response, Data(("payment", payment)));
                 }
                 case "api/APPayment/ReadPaymentBatch":
                 {
                     var batchNumber = ExtractKey(input, "BatchNumber");
                     var (response, paymentBatch) = await _apPaymentService.ReadPaymentBatchAsync(batchNumber, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { paymentBatch });
+                    return new AccpacOperationResult(response, Data(("paymentBatch", paymentBatch)));
                 }
                 case "api/APPayment/SyncAPPayments":
                 {
                     var req = DeserializeOrThrow<SyncAPPayments>(input);
                     var (response, sync) = await _apPaymentService.SyncPaymentsAsync(req, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { sync });
+                    return new AccpacOperationResult(response, Data(("sync", sync)));
                 }
                 case "api/APAdjustment/CreateAdjustment":
                 {
                     var adjustment = DeserializeOrThrow<APAdjustments>(input);
                     var (response, saved) = await _apAdjustmentService.CreateAdjustmentAsync(adjustment, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { adjustment = saved });
+                    return new AccpacOperationResult(response, Data(("adjustment", saved)));
                 }
                 case "api/APAdjustment/CreateAdjustmentBatch":
                 {
                     var adjustmentBatch = DeserializeOrThrow<APAdjustmentBatch>(input);
                     var (response, saved) = await _apAdjustmentService.CreateAdjustmentBatchAsync(adjustmentBatch, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { adjustmentBatch = saved });
+                    return new AccpacOperationResult(response, Data(("adjustmentBatch", saved)));
                 }
                 case "api/APAdjustment/ReadAdjustment":
                 {
                     var json = input as string;
                     if (string.IsNullOrWhiteSpace(json))
                     {
-                        return new AccpacOperationResult(ProcessOut.Fail("9999", "inputJson is required."), new { restRoute });
+                        return new AccpacOperationResult(ProcessOut.Fail("9999", "inputJson is required."), Data(("restRoute", restRoute)));
                     }
 
                     using var doc = JsonDocument.Parse(json);
@@ -257,43 +268,43 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
                     var entryNumber = doc.RootElement.TryGetProperty("EntryNumber", out var en) ? en.GetString() : null;
                     if (string.IsNullOrWhiteSpace(batchNumber) || string.IsNullOrWhiteSpace(entryNumber))
                     {
-                        return new AccpacOperationResult(ProcessOut.Fail("9999", "BatchNumber and EntryNumber are required."), new { restRoute });
+                        return new AccpacOperationResult(ProcessOut.Fail("9999", "BatchNumber and EntryNumber are required."), Data(("restRoute", restRoute)));
                     }
 
                     var (response, adjustment) = await _apAdjustmentService.ReadAdjustmentAsync(batchNumber, entryNumber, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { adjustment });
+                    return new AccpacOperationResult(response, Data(("adjustment", adjustment)));
                 }
                 case "api/APAdjustment/ReadAdjustmentBatch":
                 {
                     var batchNumber = ExtractKey(input, "BatchNumber");
                     var (response, adjustmentBatch) = await _apAdjustmentService.ReadAdjustmentBatchAsync(batchNumber, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { adjustmentBatch });
+                    return new AccpacOperationResult(response, Data(("adjustmentBatch", adjustmentBatch)));
                 }
                 case "api/APAdjustment/SyncAdjustment":
                 {
                     var req = DeserializeOrThrow<SyncAPAdjustments>(input);
                     var (response, sync) = await _apAdjustmentService.SyncAdjustmentsAsync(req, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { sync });
+                    return new AccpacOperationResult(response, Data(("sync", sync)));
                 }
                 case "api/ARInvoice/CreateARInvoice":
                 case "api/ARInvoice/UpdateARInvoice":
                 {
                     var invoice = DeserializeOrThrow<ARInvoice>(input);
                     var (response, saved) = await _arInvoiceService.CreateOrUpdateAsync(invoice, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { arInvoice = saved });
+                    return new AccpacOperationResult(response, Data(("arInvoice", saved)));
                 }
                 case "api/ARInvoice/CreateARInvoiceBatch":
                 {
                     var batch = DeserializeOrThrow<ARInvoiceBatch>(input);
                     var (response, saved) = await _arInvoiceService.CreateInvoiceBatchAsync(batch, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { arInvoiceBatch = saved });
+                    return new AccpacOperationResult(response, Data(("arInvoiceBatch", saved)));
                 }
                 case "api/ARInvoice/ReadARInvoice":
                 {
                     var json = input as string;
                     if (string.IsNullOrWhiteSpace(json))
                     {
-                        return new AccpacOperationResult(ProcessOut.Fail("9999", "inputJson is required."), new { restRoute });
+                        return new AccpacOperationResult(ProcessOut.Fail("9999", "inputJson is required."), Data(("restRoute", restRoute)));
                     }
 
                     using var doc = JsonDocument.Parse(json);
@@ -301,49 +312,49 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
                     var entryNumber = doc.RootElement.TryGetProperty("EntryNumber", out var en) ? en.GetString() : null;
                     if (string.IsNullOrWhiteSpace(batchNumber) || string.IsNullOrWhiteSpace(entryNumber))
                     {
-                        return new AccpacOperationResult(ProcessOut.Fail("9999", "BatchNumber and EntryNumber are required."), new { restRoute });
+                        return new AccpacOperationResult(ProcessOut.Fail("9999", "BatchNumber and EntryNumber are required."), Data(("restRoute", restRoute)));
                     }
 
                     var (response, invoice) = await _arInvoiceService.ReadInvoiceAsync(batchNumber, entryNumber, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { arInvoice = invoice });
+                    return new AccpacOperationResult(response, Data(("arInvoice", invoice)));
                 }
                 case "api/ARInvoice/ReadARInvoiceBatchStatus":
                 {
                     var batchNumber = ExtractKey(input, "BatchNumber");
                     var (response, batch) = await _arInvoiceService.ReadInvoiceBatchStatusAsync(batchNumber, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { arInvoiceBatch = batch });
+                    return new AccpacOperationResult(response, Data(("arInvoiceBatch", batch)));
                 }
                 case "api/ARInvoice/ReadARInvoiceBatch":
                 {
                     var batchNumber = ExtractKey(input, "BatchNumber");
                     var (response, batch) = await _arInvoiceService.ReadInvoiceBatchAsync(batchNumber, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { arInvoiceBatch = batch });
+                    return new AccpacOperationResult(response, Data(("arInvoiceBatch", batch)));
                 }
                 case "api/ARInvoice/SyncARInvoices":
                 {
                     var req = DeserializeOrThrow<SyncARInvoices>(input);
                     var (response, sync) = await _arInvoiceService.SyncInvoicesAsync(req, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { sync });
+                    return new AccpacOperationResult(response, Data(("sync", sync)));
                 }
                 case "api/ARAdjustment/CreateARAdjustment":
                 case "api/ARAdjustment/UpdateAdjustment":
                 {
                     var adjustment = DeserializeOrThrow<ARAdjustment>(input);
                     var (response, saved) = await _arAdjustmentService.CreateOrUpdateAsync(adjustment, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { arAdjustment = saved });
+                    return new AccpacOperationResult(response, Data(("arAdjustment", saved)));
                 }
                 case "api/ARAdjustment/CreateARAdjustmentBatch":
                 {
                     var batch = DeserializeOrThrow<ARAdjustmentBatch>(input);
                     var (response, saved) = await _arAdjustmentService.CreateAdjustmentBatchAsync(batch, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { arAdjustmentBatch = saved });
+                    return new AccpacOperationResult(response, Data(("arAdjustmentBatch", saved)));
                 }
                 case "api/ARAdjustment/ReadARAdjustment":
                 {
                     var json = input as string;
                     if (string.IsNullOrWhiteSpace(json))
                     {
-                        return new AccpacOperationResult(ProcessOut.Fail("9999", "inputJson is required."), new { restRoute });
+                        return new AccpacOperationResult(ProcessOut.Fail("9999", "inputJson is required."), Data(("restRoute", restRoute)));
                     }
 
                     using var doc = JsonDocument.Parse(json);
@@ -351,23 +362,23 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
                     var entryNumber = doc.RootElement.TryGetProperty("EntryNumber", out var en) ? en.GetString() : null;
                     if (string.IsNullOrWhiteSpace(batchNumber) || string.IsNullOrWhiteSpace(entryNumber))
                     {
-                        return new AccpacOperationResult(ProcessOut.Fail("9999", "BatchNumber and EntryNumber are required."), new { restRoute });
+                        return new AccpacOperationResult(ProcessOut.Fail("9999", "BatchNumber and EntryNumber are required."), Data(("restRoute", restRoute)));
                     }
 
                     var (response, adj) = await _arAdjustmentService.ReadAdjustmentAsync(batchNumber, entryNumber, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { arAdjustment = adj });
+                    return new AccpacOperationResult(response, Data(("arAdjustment", adj)));
                 }
                 case "api/ARAdjustment/ReadARAdjustmentBatch":
                 {
                     var batchNumber = ExtractKey(input, "BatchNumber");
                     var (response, batch) = await _arAdjustmentService.ReadAdjustmentBatchAsync(batchNumber, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { arAdjustmentBatch = batch });
+                    return new AccpacOperationResult(response, Data(("arAdjustmentBatch", batch)));
                 }
                 case "api/ARAdjustment/SyncARAdjustments":
                 {
                     var req = DeserializeOrThrow<SyncARAdjustments>(input);
                     var (response, sync) = await _arAdjustmentService.SyncAdjustmentsAsync(req, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { sync });
+                    return new AccpacOperationResult(response, Data(("sync", sync)));
                 }
                 case "api/ARReceipt/CreateARReceipt":
                 case "api/ARReceipt/CreateARReceiptAppendPrepayment":
@@ -375,20 +386,20 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
                 {
                     var receipt = DeserializeOrThrow<ARReceipt>(input);
                     var (response, saved) = await _arReceiptService.CreateOrUpdateAsync(receipt, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { arReceipt = saved });
+                    return new AccpacOperationResult(response, Data(("arReceipt", saved)));
                 }
                 case "api/ARReceipt/CreateARReceiptBatch":
                 {
                     var batch = DeserializeOrThrow<ARReceiptBatch>(input);
                     var (response, saved) = await _arReceiptService.CreateReceiptBatchAsync(batch, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { arReceiptBatch = saved });
+                    return new AccpacOperationResult(response, Data(("arReceiptBatch", saved)));
                 }
                 case "api/ARReceipt/ReadARReceipt":
                 {
                     var json = input as string;
                     if (string.IsNullOrWhiteSpace(json))
                     {
-                        return new AccpacOperationResult(ProcessOut.Fail("9999", "inputJson is required."), new { restRoute });
+                        return new AccpacOperationResult(ProcessOut.Fail("9999", "inputJson is required."), Data(("restRoute", restRoute)));
                     }
 
                     using var doc = JsonDocument.Parse(json);
@@ -396,114 +407,114 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
                     var entryNumber = doc.RootElement.TryGetProperty("EntryNumber", out var en) ? en.GetString() : null;
                     if (string.IsNullOrWhiteSpace(batchNumber) || string.IsNullOrWhiteSpace(entryNumber))
                     {
-                        return new AccpacOperationResult(ProcessOut.Fail("9999", "BatchNumber and EntryNumber are required."), new { restRoute });
+                        return new AccpacOperationResult(ProcessOut.Fail("9999", "BatchNumber and EntryNumber are required."), Data(("restRoute", restRoute)));
                     }
 
                     var (response, receipt) = await _arReceiptService.ReadReceiptAsync(batchNumber, entryNumber, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { arReceipt = receipt });
+                    return new AccpacOperationResult(response, Data(("arReceipt", receipt)));
                 }
                 case "api/ARReceipt/ReadARReceiptBatch":
                 {
                     var batchNumber = ExtractKey(input, "BatchNumber");
                     var (response, batch) = await _arReceiptService.ReadReceiptBatchAsync(batchNumber, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { arReceiptBatch = batch });
+                    return new AccpacOperationResult(response, Data(("arReceiptBatch", batch)));
                 }
                 case "api/ARReceipt/SyncARReceipts":
                 {
                     var req = DeserializeOrThrow<SyncARReceipts>(input);
                     var (response, sync) = await _arReceiptService.SyncReceiptsAsync(req, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { sync });
+                    return new AccpacOperationResult(response, Data(("sync", sync)));
                 }
                 case "api/ARRefund/CreateARRefund":
                 case "api/ARRefund/UpdateARRefund":
                 {
                     var refund = DeserializeOrThrow<ARRefund>(input);
                     var (response, saved) = await _arRefundService.CreateOrUpdateAsync(refund, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { arRefund = saved });
+                    return new AccpacOperationResult(response, Data(("arRefund", saved)));
                 }
                 case "api/ARRefund/CreateARRefundBatch":
                 {
                     var batch = DeserializeOrThrow<ARRefundBatch>(input);
                     var (response, saved) = await _arRefundService.CreateRefundBatchAsync(batch, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { arRefundBatch = saved });
+                    return new AccpacOperationResult(response, Data(("arRefundBatch", saved)));
                 }
                 case "api/ARRefund/ReadARRefund":
                 {
                     var documentNumber = ExtractKey(input, "DocumentNumber023");
                     var (response, refund) = await _arRefundService.ReadRefundAsync(documentNumber, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { arRefund = refund });
+                    return new AccpacOperationResult(response, Data(("arRefund", refund)));
                 }
                 case "api/ARRefund/ReadARRefundBatch":
                 {
                     var batchNumber = ExtractKey(input, "BatchNumber");
                     var (response, batch) = await _arRefundService.ReadRefundBatchAsync(batchNumber, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { arRefundBatch = batch });
+                    return new AccpacOperationResult(response, Data(("arRefundBatch", batch)));
                 }
                 case "api/ARRefund/SyncARRefunds":
                 {
                     var req = DeserializeOrThrow<SyncARRefunds>(input);
                     var (response, sync) = await _arRefundService.SyncRefundsAsync(req, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { sync });
+                    return new AccpacOperationResult(response, Data(("sync", sync)));
                 }
                 case "api/ARBillingCycle/CreateARBillingCycles":
                 case "api/ARBillingCycle/UpdateARBillingCycles":
                 {
                     var billingCycles = DeserializeOrThrow<ARBillingCycles>(input);
                     var (response, saved) = await _arBillingCyclesService.CreateOrUpdateAsync(billingCycles, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { billingCycles = saved });
+                    return new AccpacOperationResult(response, Data(("billingCycles", saved)));
                 }
                 case "api/ARBillingCycle/ReadARBillingCycles":
                 {
                     var billingCycle = ExtractKey(input, "BillingCycle000");
                     var (response, billingCycles) = await _arBillingCyclesService.ReadAsync(billingCycle, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { billingCycles });
+                    return new AccpacOperationResult(response, Data(("billingCycles", billingCycles)));
                 }
                 case "api/ARSalesperson/CreateARSalesPersons":
                 case "api/ARSalesperson/UpdateARSalesPersons":
                 {
                     var salesPerson = DeserializeOrThrow<ARSalesPersons>(input);
                     var (response, saved) = await _arSalesPersonsService.CreateOrUpdateAsync(salesPerson, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { salesPerson = saved });
+                    return new AccpacOperationResult(response, Data(("salesPerson", saved)));
                 }
                 case "api/ARCustomer/CreateARCustomer":
                 case "api/ARCustomer/UpdateARCustomer":
                 {
                     var customer = DeserializeOrThrow<ARCustomers>(input);
                     var (response, saved) = await _arCustomerService.CreateOrUpdateAsync(customer, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { customer = saved });
+                    return new AccpacOperationResult(response, Data(("customer", saved)));
                 }
                 case "api/ARCustomer/ReadARCustomer":
                 {
                     var customerNumber = ExtractKey(input, "CustomerNumber000");
                     var (response, customer) = await _arCustomerService.ReadAsync(customerNumber, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { customer });
+                    return new AccpacOperationResult(response, Data(("customer", customer)));
                 }
                 case "api/ARCustomer/ReadARCustomerBalance":
                 {
                     var customerNumber = ExtractKey(input, "CustomerNumber000");
                     var (response, customerBalance) = await _arCustomerService.ReadBalanceAsync(customerNumber, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { customerBalance });
+                    return new AccpacOperationResult(response, Data(("customerBalance", customerBalance)));
                 }
                 case "api/ARTermsCode/CreateARTermsCodes":
                 case "api/ARTermsCode/UpdateARTermsCodes":
                 {
                     var termsCodes = DeserializeOrThrow<ARTermsCodes>(input);
                     var (response, saved) = await _arTermsCodesService.CreateOrUpdateAsync(termsCodes, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { termsCodes = saved });
+                    return new AccpacOperationResult(response, Data(("termsCodes", saved)));
                 }
                 case "api/ARShipToLocation/CreateARShipToLocation":
                 case "api/ARShipToLocation/UpdateARShipToLocation":
                 {
                     var shipTo = DeserializeOrThrow<ARShipToLocations>(input);
                     var (response, saved) = await _arShipToLocationService.CreateOrUpdateAsync(shipTo, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { shipToLocation = saved });
+                    return new AccpacOperationResult(response, Data(("shipToLocation", saved)));
                 }
                 case "api/ARShipToLocation/ReadARShipToLocation":
                 {
                     var json = input as string;
                     if (string.IsNullOrWhiteSpace(json))
                     {
-                        return new AccpacOperationResult(ProcessOut.Fail("9999", "inputJson is required."), new { restRoute });
+                        return new AccpacOperationResult(ProcessOut.Fail("9999", "inputJson is required."), Data(("restRoute", restRoute)));
                     }
 
                     using var doc = JsonDocument.Parse(json);
@@ -511,18 +522,18 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
                     var shipToLocation = doc.RootElement.TryGetProperty("ShipToLocation", out var st) ? st.GetString() : null;
                     if (string.IsNullOrWhiteSpace(customerNumber) || string.IsNullOrWhiteSpace(shipToLocation))
                     {
-                        return new AccpacOperationResult(ProcessOut.Fail("9999", "CustomerNumber and ShipToLocation are required."), new { restRoute });
+                        return new AccpacOperationResult(ProcessOut.Fail("9999", "CustomerNumber and ShipToLocation are required."), Data(("restRoute", restRoute)));
                     }
 
                     var (response, shipTo) = await _arShipToLocationService.ReadAsync(customerNumber, shipToLocation, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { shipToLocation = shipTo });
+                    return new AccpacOperationResult(response, Data(("shipToLocation", shipTo)));
                 }
                 case "api/ARShipToLocation/ReadCustomerShipToLocations":
                 {
                     var json = input as string;
                     if (string.IsNullOrWhiteSpace(json))
                     {
-                        return new AccpacOperationResult(ProcessOut.Fail("9999", "inputJson is required."), new { restRoute });
+                        return new AccpacOperationResult(ProcessOut.Fail("9999", "inputJson is required."), Data(("restRoute", restRoute)));
                     }
 
                     using var doc = JsonDocument.Parse(json);
@@ -530,44 +541,44 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
                     var shipToId = doc.RootElement.TryGetProperty("ShipToID", out var st) ? st.GetString() : null;
                     if (string.IsNullOrWhiteSpace(customerNumber))
                     {
-                        return new AccpacOperationResult(ProcessOut.Fail("9999", "CustomerNumber is required."), new { restRoute });
+                        return new AccpacOperationResult(ProcessOut.Fail("9999", "CustomerNumber is required."), Data(("restRoute", restRoute)));
                     }
 
                     var (response, shipTos) = await _arShipToLocationService.ReadCustomerShipToLocationsAsync(customerNumber, shipToId, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { shipToLocations = shipTos });
+                    return new AccpacOperationResult(response, Data(("shipToLocations", shipTos)));
                 }
                 case "api/ARShipToLocation/SyncARShipToLocation":
                 {
                     var req = DeserializeOrThrow<SyncARShipToLocations>(input);
                     var (response, sync) = await _arShipToLocationService.SyncAsync(req, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { sync });
+                    return new AccpacOperationResult(response, Data(("sync", sync)));
                 }
                 case "api/ARCustomerGroup/CreateARCustomerGroupss":
                 case "api/ARCustomerGroup/UpdateARCustomerGroups":
                 {
                     var customerGroup = DeserializeOrThrow<ARCustomerGroups>(input);
                     var (response, saved) = await _arCustomerGroupService.CreateOrUpdateAsync(customerGroup, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { customerGroup = saved });
+                    return new AccpacOperationResult(response, Data(("customerGroup", saved)));
                 }
                 case "api/ARItem/CreateARItems":
                 case "api/ARItem/UpdateARItems":
                 {
                     var item = DeserializeOrThrow<ARItems>(input);
                     var (response, saved) = await _arItemService.CreateOrUpdateAsync(item, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { arItems = saved });
+                    return new AccpacOperationResult(response, Data(("arItems", saved)));
                 }
                 case "api/ARDocuments/GetDocuments":
                 {
                     var documents = DeserializeOrThrow<AROpenInvoices>(input);
                     var (response, saved) = await _arDocumentsService.GetDocumentsAsync(documents, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { invoices = saved });
+                    return new AccpacOperationResult(response, Data(("invoices", saved)));
                 }
                 case "api/ARDocuments/GetAgedBalances":
                 {
                     var json = input as string;
                     if (string.IsNullOrWhiteSpace(json))
                     {
-                        return new AccpacOperationResult(ProcessOut.Fail("9999", "inputJson is required."), new { restRoute });
+                        return new AccpacOperationResult(ProcessOut.Fail("9999", "inputJson is required."), Data(("restRoute", restRoute)));
                     }
 
                     string? customer = null;
@@ -587,36 +598,36 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
 
                     if (string.IsNullOrWhiteSpace(customer))
                     {
-                        return new AccpacOperationResult(ProcessOut.Fail("9999", "customer is required."), new { restRoute });
+                        return new AccpacOperationResult(ProcessOut.Fail("9999", "customer is required."), Data(("restRoute", restRoute)));
                     }
 
                     var (response, analysis) = await _arDocumentsService.GetAgedBalancesAsync(customer, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { agedAnalysis = analysis });
+                    return new AccpacOperationResult(response, Data(("agedAnalysis", analysis)));
                 }
                 case "api/ARCustomer/ReadARStatementRun":
                 case "api/ARStatementRun/ReadARStatementRun":
                 {
                     var req = DeserializeOrThrow<ARStatementRun>(input);
                     var (response, statementRun) = await _arStatementRunService.ReadAsync(req, user, cancellationToken);
-                    return new AccpacOperationResult(response, new { statementRun });
+                    return new AccpacOperationResult(response, Data(("statementRun", statementRun)));
                 }
                 case "api/ARCustomer/Read_ARStatementRun":
                 case "api/ARStatementRun/Read_ARStatementRun":
                 {
                     var (response, sync) = await _arStatementRunService.ReadAllAsync(user, cancellationToken);
-                    return new AccpacOperationResult(response, new { sync });
+                    return new AccpacOperationResult(response, Data(("sync", sync)));
                 }
                 default:
                     return new AccpacOperationResult(
                         ProcessOut.Fail("9998", $"Operation not implemented yet: {restRoute}"),
-                        new { restRoute, input });
+                        Data(("restRoute", restRoute), ("input", input)));
             }
         }
         catch (Exception ex)
         {
             return new AccpacOperationResult(
                 ProcessOut.Fail("9999", ex.Message),
-                new { restRoute });
+                Data(("restRoute", restRoute)));
         }
     }
 
