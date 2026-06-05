@@ -220,3 +220,32 @@ public interface IArAdjustmentService
         ClaimsPrincipal user,
         CancellationToken cancellationToken);
 }
+
+public interface IArReceiptService
+{
+    Task<(ProcessOut Response, ARReceipt Receipt)> CreateOrUpdateAsync(
+        ARReceipt receipt,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken);
+
+    Task<(ProcessOut Response, ARReceiptBatch Batch)> CreateReceiptBatchAsync(
+        ARReceiptBatch batch,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken);
+
+    Task<(ProcessOut Response, ARReceipt Receipt)> ReadReceiptAsync(
+        string batchNumber,
+        string entryNumber,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken);
+
+    Task<(ProcessOut Response, ARReceiptBatch Batch)> ReadReceiptBatchAsync(
+        string batchNumber,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken);
+
+    Task<(ProcessOut Response, SyncARReceipts Sync)> SyncReceiptsAsync(
+        SyncARReceipts request,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken);
+}

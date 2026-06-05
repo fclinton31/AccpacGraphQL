@@ -23,6 +23,7 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
     private readonly IApAdjustmentService _apAdjustmentService;
     private readonly IArInvoiceService _arInvoiceService;
     private readonly IArAdjustmentService _arAdjustmentService;
+    private readonly IArReceiptService _arReceiptService;
 
     public AccpacOperationExecutor(
         IApVendorService apVendorService,
@@ -35,7 +36,8 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
         IApPaymentService apPaymentService,
         IApAdjustmentService apAdjustmentService,
         IArInvoiceService arInvoiceService,
-        IArAdjustmentService arAdjustmentService)
+        IArAdjustmentService arAdjustmentService,
+        IArReceiptService arReceiptService)
     {
         _apVendorService = apVendorService;
         _apVendorGroupService = apVendorGroupService;
@@ -48,6 +50,7 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
         _apAdjustmentService = apAdjustmentService;
         _arInvoiceService = arInvoiceService;
         _arAdjustmentService = arAdjustmentService;
+        _arReceiptService = arReceiptService;
     }
 
     public async Task<AccpacOperationResult> ExecuteAsync(
@@ -334,6 +337,51 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
                 {
                     var req = DeserializeOrThrow<SyncARAdjustments>(input);
                     var (response, sync) = await _arAdjustmentService.SyncAdjustmentsAsync(req, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { sync });
+                }
+                case "api/ARReceipt/CreateARReceipt":
+                case "api/ARReceipt/CreateARReceiptAppendPrepayment":
+                case "api/ARReceipt/UpdateReceipt":
+                {
+                    var receipt = DeserializeOrThrow<ARReceipt>(input);
+                    var (response, saved) = await _arReceiptService.CreateOrUpdateAsync(receipt, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { arReceipt = saved });
+                }
+                case "api/ARReceipt/CreateARReceiptBatch":
+                {
+                    var batch = DeserializeOrThrow<ARReceiptBatch>(input);
+                    var (response, saved) = await _arReceiptService.CreateReceiptBatchAsync(batch, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { arReceiptBatch = saved });
+                }
+                case "api/ARReceipt/ReadARReceipt":
+                {
+                    var json = input as string;
+                    if (string.IsNullOrWhiteSpace(json))
+                    {
+                        return new AccpacOperationResult(ProcessOut.Fail("9999", "inputJson is required."), new { restRoute });
+                    }
+
+                    using var doc = JsonDocument.Parse(json);
+                    var batchNumber = doc.RootElement.TryGetProperty("BatchNumber", out var bn) ? bn.GetString() : null;
+                    var entryNumber = doc.RootElement.TryGetProperty("EntryNumber", out var en) ? en.GetString() : null;
+                    if (string.IsNullOrWhiteSpace(batchNumber) || string.IsNullOrWhiteSpace(entryNumber))
+                    {
+                        return new AccpacOperationResult(ProcessOut.Fail("9999", "BatchNumber and EntryNumber are required."), new { restRoute });
+                    }
+
+                    var (response, receipt) = await _arReceiptService.ReadReceiptAsync(batchNumber, entryNumber, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { arReceipt = receipt });
+                }
+                case "api/ARReceipt/ReadARReceiptBatch":
+                {
+                    var batchNumber = ExtractKey(input, "BatchNumber");
+                    var (response, batch) = await _arReceiptService.ReadReceiptBatchAsync(batchNumber, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { arReceiptBatch = batch });
+                }
+                case "api/ARReceipt/SyncARReceipts":
+                {
+                    var req = DeserializeOrThrow<SyncARReceipts>(input);
+                    var (response, sync) = await _arReceiptService.SyncReceiptsAsync(req, user, cancellationToken);
                     return new AccpacOperationResult(response, new { sync });
                 }
                 default:
