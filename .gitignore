@@ -1,0 +1,13 @@
+bin/
+obj/
+.vs/
+.vscode/
+*.user
+*.suo
+*.cache
+*.db
+*.db-shm
+*.db-wal
+TestResults/
+artifacts/
+**/appsettings.Development.json

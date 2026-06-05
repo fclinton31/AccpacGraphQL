@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="AccpacGraphqlClean.Api/AccpacGraphqlClean.Api.csproj" />
+  <Project Path="AccpacGraphqlClean.Application/AccpacGraphqlClean.Application.csproj" />
+  <Project Path="AccpacGraphqlClean.Domain/AccpacGraphqlClean.Domain.csproj" />
+  <Project Path="AccpacGraphqlClean.Infrastructure/AccpacGraphqlClean.Infrastructure.csproj" />
+</Solution>

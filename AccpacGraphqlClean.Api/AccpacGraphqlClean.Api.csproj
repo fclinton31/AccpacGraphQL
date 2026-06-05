@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <ProjectReference Include="..\AccpacGraphqlClean.Domain\AccpacGraphqlClean.Domain.csproj" />
+    <ProjectReference Include="..\AccpacGraphqlClean.Application\AccpacGraphqlClean.Application.csproj" />
+    <ProjectReference Include="..\AccpacGraphqlClean.Infrastructure\AccpacGraphqlClean.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="HotChocolate.AspNetCore" Version="16.1.2" />
+    <PackageReference Include="HotChocolate.Data" Version="16.1.2" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.8" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+</Project>

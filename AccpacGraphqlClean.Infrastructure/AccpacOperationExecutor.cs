@@ -1,0 +1,346 @@
+using System.Security.Claims;
+using System.Text.Json;
+using AccpacGraphqlClean.Application;
+using AccpacGraphqlClean.Domain;
+
+namespace AccpacGraphqlClean.Infrastructure;
+
+public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
+{
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
+    private readonly IApVendorService _apVendorService;
+    private readonly IApVendorGroupService _apVendorGroupService;
+    private readonly IApPaymentCodeService _apPaymentCodeService;
+    private readonly IApPaymentTermsService _apPaymentTermsService;
+    private readonly IApRemitToLocationsService _apRemitToLocationsService;
+    private readonly IApRecurringPayablesService _apRecurringPayablesService;
+    private readonly IApInvoiceService _apInvoiceService;
+    private readonly IApPaymentService _apPaymentService;
+    private readonly IApAdjustmentService _apAdjustmentService;
+    private readonly IArInvoiceService _arInvoiceService;
+
+    public AccpacOperationExecutor(
+        IApVendorService apVendorService,
+        IApVendorGroupService apVendorGroupService,
+        IApPaymentCodeService apPaymentCodeService,
+        IApPaymentTermsService apPaymentTermsService,
+        IApRemitToLocationsService apRemitToLocationsService,
+        IApRecurringPayablesService apRecurringPayablesService,
+        IApInvoiceService apInvoiceService,
+        IApPaymentService apPaymentService,
+        IApAdjustmentService apAdjustmentService,
+        IArInvoiceService arInvoiceService)
+    {
+        _apVendorService = apVendorService;
+        _apVendorGroupService = apVendorGroupService;
+        _apPaymentCodeService = apPaymentCodeService;
+        _apPaymentTermsService = apPaymentTermsService;
+        _apRemitToLocationsService = apRemitToLocationsService;
+        _apRecurringPayablesService = apRecurringPayablesService;
+        _apInvoiceService = apInvoiceService;
+        _apPaymentService = apPaymentService;
+        _apAdjustmentService = apAdjustmentService;
+        _arInvoiceService = arInvoiceService;
+    }
+
+    public async Task<AccpacOperationResult> ExecuteAsync(
+        string restRoute,
+        object? input,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            switch (restRoute)
+            {
+                case "api/APVendor/CreateAPVendor":
+                {
+                    var vendor = DeserializeOrThrow<APVendor>(input);
+                    var (response, saved) = await _apVendorService.CreateOrUpdateAsync(vendor, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { vendor = saved });
+                }
+                case "api/APVendor/ReadAPVendor":
+                {
+                    var vendorNumber = ExtractKey(input, "VendorNumber000");
+                    var (response, vendor) = await _apVendorService.ReadAsync(vendorNumber, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { vendor });
+                }
+                case "api/APVendorGroup/CreateAPVendorGroups":
+                case "api/APVendorGroup/UpdateAPVendorGroups":
+                {
+                    var vendorGroup = DeserializeOrThrow<APVendorGroup>(input);
+                    var (response, saved) = await _apVendorGroupService.CreateOrUpdateAsync(vendorGroup, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { vendorGroup = saved });
+                }
+                case "api/APPaymentCode/CreateAPPaymentCodes":
+                case "api/APPaymentCode/UpdateAPPaymentCodes":
+                {
+                    var paymentCode = DeserializeOrThrow<APPaymentCodes>(input);
+                    var (response, saved) = await _apPaymentCodeService.CreateOrUpdateAsync(paymentCode, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { paymentCode = saved });
+                }
+                case "api/APPaymentTerms/CreateAPPaymentTerms":
+                case "api/APPaymentTerms/UpdateAPPaymentTerms":
+                {
+                    var paymentTerms = DeserializeOrThrow<APPaymentTerms>(input);
+                    var (response, saved) = await _apPaymentTermsService.CreateOrUpdateAsync(paymentTerms, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { paymentTerms = saved });
+                }
+                case "api/APRemitToLocation/CreateAPRemitToLocations":
+                case "api/APRemitToLocation/UpdateAPRemitToLocations":
+                {
+                    var remit = DeserializeOrThrow<APRemitToLocations>(input);
+                    var (response, saved) = await _apRemitToLocationsService.CreateOrUpdateAsync(remit, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { remitToLocations = saved });
+                }
+                case "api/APRecurringPayable/CreateAPRecurringPayables":
+                case "api/APRecurringPayable/UpdateAPRecurringPayables":
+                {
+                    var recurring = DeserializeOrThrow<APRecurringPayables>(input);
+                    var (response, saved) = await _apRecurringPayablesService.CreateOrUpdateAsync(recurring, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { recurringPayables = saved });
+                }
+                case "api/APInvoice/CreateInvoice":
+                {
+                    var invoice = DeserializeOrThrow<APInvoices>(input);
+                    var (response, saved) = await _apInvoiceService.CreateInvoiceAsync(invoice, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { invoices = saved });
+                }
+                case "api/APInvoice/CreateInvoiceBatch":
+                {
+                    var batch = DeserializeOrThrow<APInvoiceBatch>(input);
+                    var (response, saved) = await _apInvoiceService.CreateInvoiceBatchAsync(batch, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { invoices = saved });
+                }
+                case "api/APInvoice/ReadInvoice":
+                {
+                    var json = input as string;
+                    if (string.IsNullOrWhiteSpace(json))
+                    {
+                        return new AccpacOperationResult(ProcessOut.Fail("9999", "inputJson is required."), new { restRoute });
+                    }
+
+                    using var doc = JsonDocument.Parse(json);
+                    var batchNumber = doc.RootElement.TryGetProperty("BatchNumber", out var bn) ? bn.GetString() : null;
+                    var entryNumber = doc.RootElement.TryGetProperty("EntryNumber", out var en) ? en.GetString() : null;
+                    if (string.IsNullOrWhiteSpace(batchNumber) || string.IsNullOrWhiteSpace(entryNumber))
+                    {
+                        return new AccpacOperationResult(ProcessOut.Fail("9999", "BatchNumber and EntryNumber are required."), new { restRoute });
+                    }
+
+                    var (response, invoice) = await _apInvoiceService.ReadInvoiceAsync(batchNumber, entryNumber, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { invoices = invoice });
+                }
+                case "api/APInvoice/ReadInvoiceBatchStatus":
+                {
+                    var batchNumber = ExtractKey(input, "BatchNumber");
+                    var (response, batch) = await _apInvoiceService.ReadInvoiceBatchStatusAsync(batchNumber, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { InvoiceBatch = batch });
+                }
+                case "api/APInvoice/ReadInvoiceBatch":
+                {
+                    var batchNumber = ExtractKey(input, "BatchNumber");
+                    var (response, batch) = await _apInvoiceService.ReadInvoiceBatchAsync(batchNumber, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { InvoiceBatch = batch });
+                }
+                case "api/APInvoice/SyncInvoices":
+                {
+                    var req = DeserializeOrThrow<SyncAPInvoices>(input);
+                    var (response, sync) = await _apInvoiceService.SyncInvoicesAsync(req, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { sync });
+                }
+                case "api/APPayment/CreatePayment":
+                {
+                    var payment = DeserializeOrThrow<APPayment>(input);
+                    var (response, saved) = await _apPaymentService.CreatePaymentAsync(payment, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { payment = saved });
+                }
+                case "api/APPayment/CreatePaymentBatch":
+                {
+                    var paymentBatch = DeserializeOrThrow<APPaymentBatch>(input);
+                    var (response, saved) = await _apPaymentService.CreatePaymentBatchAsync(paymentBatch, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { paymentBatch = saved });
+                }
+                case "api/APPayment/ReadPayment":
+                {
+                    var json = input as string;
+                    if (string.IsNullOrWhiteSpace(json))
+                    {
+                        return new AccpacOperationResult(ProcessOut.Fail("9999", "inputJson is required."), new { restRoute });
+                    }
+
+                    using var doc = JsonDocument.Parse(json);
+                    var batchNumber = doc.RootElement.TryGetProperty("BatchNumber", out var bn) ? bn.GetString() : null;
+                    var entryNumber = doc.RootElement.TryGetProperty("EntryNumber", out var en) ? en.GetString() : null;
+                    if (string.IsNullOrWhiteSpace(batchNumber) || string.IsNullOrWhiteSpace(entryNumber))
+                    {
+                        return new AccpacOperationResult(ProcessOut.Fail("9999", "BatchNumber and EntryNumber are required."), new { restRoute });
+                    }
+
+                    var (response, payment) = await _apPaymentService.ReadPaymentAsync(batchNumber, entryNumber, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { payment });
+                }
+                case "api/APPayment/ReadPaymentBatch":
+                {
+                    var batchNumber = ExtractKey(input, "BatchNumber");
+                    var (response, paymentBatch) = await _apPaymentService.ReadPaymentBatchAsync(batchNumber, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { paymentBatch });
+                }
+                case "api/APPayment/SyncAPPayments":
+                {
+                    var req = DeserializeOrThrow<SyncAPPayments>(input);
+                    var (response, sync) = await _apPaymentService.SyncPaymentsAsync(req, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { sync });
+                }
+                case "api/APAdjustment/CreateAdjustment":
+                {
+                    var adjustment = DeserializeOrThrow<APAdjustments>(input);
+                    var (response, saved) = await _apAdjustmentService.CreateAdjustmentAsync(adjustment, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { adjustment = saved });
+                }
+                case "api/APAdjustment/CreateAdjustmentBatch":
+                {
+                    var adjustmentBatch = DeserializeOrThrow<APAdjustmentBatch>(input);
+                    var (response, saved) = await _apAdjustmentService.CreateAdjustmentBatchAsync(adjustmentBatch, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { adjustmentBatch = saved });
+                }
+                case "api/APAdjustment/ReadAdjustment":
+                {
+                    var json = input as string;
+                    if (string.IsNullOrWhiteSpace(json))
+                    {
+                        return new AccpacOperationResult(ProcessOut.Fail("9999", "inputJson is required."), new { restRoute });
+                    }
+
+                    using var doc = JsonDocument.Parse(json);
+                    var batchNumber = doc.RootElement.TryGetProperty("BatchNumber", out var bn) ? bn.GetString() : null;
+                    var entryNumber = doc.RootElement.TryGetProperty("EntryNumber", out var en) ? en.GetString() : null;
+                    if (string.IsNullOrWhiteSpace(batchNumber) || string.IsNullOrWhiteSpace(entryNumber))
+                    {
+                        return new AccpacOperationResult(ProcessOut.Fail("9999", "BatchNumber and EntryNumber are required."), new { restRoute });
+                    }
+
+                    var (response, adjustment) = await _apAdjustmentService.ReadAdjustmentAsync(batchNumber, entryNumber, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { adjustment });
+                }
+                case "api/APAdjustment/ReadAdjustmentBatch":
+                {
+                    var batchNumber = ExtractKey(input, "BatchNumber");
+                    var (response, adjustmentBatch) = await _apAdjustmentService.ReadAdjustmentBatchAsync(batchNumber, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { adjustmentBatch });
+                }
+                case "api/APAdjustment/SyncAdjustment":
+                {
+                    var req = DeserializeOrThrow<SyncAPAdjustments>(input);
+                    var (response, sync) = await _apAdjustmentService.SyncAdjustmentsAsync(req, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { sync });
+                }
+                case "api/ARInvoice/CreateARInvoice":
+                case "api/ARInvoice/UpdateARInvoice":
+                {
+                    var invoice = DeserializeOrThrow<ARInvoice>(input);
+                    var (response, saved) = await _arInvoiceService.CreateOrUpdateAsync(invoice, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { arInvoice = saved });
+                }
+                case "api/ARInvoice/CreateARInvoiceBatch":
+                {
+                    var batch = DeserializeOrThrow<ARInvoiceBatch>(input);
+                    var (response, saved) = await _arInvoiceService.CreateInvoiceBatchAsync(batch, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { arInvoiceBatch = saved });
+                }
+                case "api/ARInvoice/ReadARInvoice":
+                {
+                    var json = input as string;
+                    if (string.IsNullOrWhiteSpace(json))
+                    {
+                        return new AccpacOperationResult(ProcessOut.Fail("9999", "inputJson is required."), new { restRoute });
+                    }
+
+                    using var doc = JsonDocument.Parse(json);
+                    var batchNumber = doc.RootElement.TryGetProperty("BatchNumber", out var bn) ? bn.GetString() : null;
+                    var entryNumber = doc.RootElement.TryGetProperty("EntryNumber", out var en) ? en.GetString() : null;
+                    if (string.IsNullOrWhiteSpace(batchNumber) || string.IsNullOrWhiteSpace(entryNumber))
+                    {
+                        return new AccpacOperationResult(ProcessOut.Fail("9999", "BatchNumber and EntryNumber are required."), new { restRoute });
+                    }
+
+                    var (response, invoice) = await _arInvoiceService.ReadInvoiceAsync(batchNumber, entryNumber, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { arInvoice = invoice });
+                }
+                case "api/ARInvoice/ReadARInvoiceBatchStatus":
+                {
+                    var batchNumber = ExtractKey(input, "BatchNumber");
+                    var (response, batch) = await _arInvoiceService.ReadInvoiceBatchStatusAsync(batchNumber, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { arInvoiceBatch = batch });
+                }
+                case "api/ARInvoice/ReadARInvoiceBatch":
+                {
+                    var batchNumber = ExtractKey(input, "BatchNumber");
+                    var (response, batch) = await _arInvoiceService.ReadInvoiceBatchAsync(batchNumber, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { arInvoiceBatch = batch });
+                }
+                case "api/ARInvoice/SyncARInvoices":
+                {
+                    var req = DeserializeOrThrow<SyncARInvoices>(input);
+                    var (response, sync) = await _arInvoiceService.SyncInvoicesAsync(req, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { sync });
+                }
+                default:
+                    return new AccpacOperationResult(
+                        ProcessOut.Fail("9998", $"Operation not implemented yet: {restRoute}"),
+                        new { restRoute, input });
+            }
+        }
+        catch (Exception ex)
+        {
+            return new AccpacOperationResult(
+                ProcessOut.Fail("9999", ex.Message),
+                new { restRoute });
+        }
+    }
+
+    private static T DeserializeOrThrow<T>(object? input)
+    {
+        var json = input as string;
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            throw new InvalidOperationException("inputJson is required.");
+        }
+
+        var obj = JsonSerializer.Deserialize<T>(json, JsonOptions);
+        if (obj is null)
+        {
+            throw new InvalidOperationException("Unable to deserialize inputJson.");
+        }
+
+        return obj;
+    }
+
+    private static string ExtractKey(object? input, string keyPropertyName)
+    {
+        var json = input as string;
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            throw new InvalidOperationException("inputJson is required.");
+        }
+
+        if (json.TrimStart().StartsWith("{", StringComparison.Ordinal))
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.TryGetProperty(keyPropertyName, out var prop))
+            {
+                var value = prop.GetString();
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    return value;
+                }
+            }
+        }
+
+        return json.Trim().Trim('"');
+    }
+}
