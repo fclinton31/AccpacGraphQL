@@ -191,3 +191,32 @@ public interface IArInvoiceService
         ClaimsPrincipal user,
         CancellationToken cancellationToken);
 }
+
+public interface IArAdjustmentService
+{
+    Task<(ProcessOut Response, ARAdjustment Adjustment)> CreateOrUpdateAsync(
+        ARAdjustment adjustment,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken);
+
+    Task<(ProcessOut Response, ARAdjustmentBatch Batch)> CreateAdjustmentBatchAsync(
+        ARAdjustmentBatch batch,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken);
+
+    Task<(ProcessOut Response, ARAdjustment Adjustment)> ReadAdjustmentAsync(
+        string batchNumber,
+        string entryNumber,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken);
+
+    Task<(ProcessOut Response, ARAdjustmentBatch Batch)> ReadAdjustmentBatchAsync(
+        string batchNumber,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken);
+
+    Task<(ProcessOut Response, SyncARAdjustments Sync)> SyncAdjustmentsAsync(
+        SyncARAdjustments request,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken);
+}

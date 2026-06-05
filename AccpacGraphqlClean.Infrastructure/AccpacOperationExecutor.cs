@@ -22,6 +22,7 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
     private readonly IApPaymentService _apPaymentService;
     private readonly IApAdjustmentService _apAdjustmentService;
     private readonly IArInvoiceService _arInvoiceService;
+    private readonly IArAdjustmentService _arAdjustmentService;
 
     public AccpacOperationExecutor(
         IApVendorService apVendorService,
@@ -33,7 +34,8 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
         IApInvoiceService apInvoiceService,
         IApPaymentService apPaymentService,
         IApAdjustmentService apAdjustmentService,
-        IArInvoiceService arInvoiceService)
+        IArInvoiceService arInvoiceService,
+        IArAdjustmentService arAdjustmentService)
     {
         _apVendorService = apVendorService;
         _apVendorGroupService = apVendorGroupService;
@@ -45,6 +47,7 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
         _apPaymentService = apPaymentService;
         _apAdjustmentService = apAdjustmentService;
         _arInvoiceService = arInvoiceService;
+        _arAdjustmentService = arAdjustmentService;
     }
 
     public async Task<AccpacOperationResult> ExecuteAsync(
@@ -287,6 +290,50 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
                 {
                     var req = DeserializeOrThrow<SyncARInvoices>(input);
                     var (response, sync) = await _arInvoiceService.SyncInvoicesAsync(req, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { sync });
+                }
+                case "api/ARAdjustment/CreateARAdjustment":
+                case "api/ARAdjustment/UpdateAdjustment":
+                {
+                    var adjustment = DeserializeOrThrow<ARAdjustment>(input);
+                    var (response, saved) = await _arAdjustmentService.CreateOrUpdateAsync(adjustment, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { arAdjustment = saved });
+                }
+                case "api/ARAdjustment/CreateARAdjustmentBatch":
+                {
+                    var batch = DeserializeOrThrow<ARAdjustmentBatch>(input);
+                    var (response, saved) = await _arAdjustmentService.CreateAdjustmentBatchAsync(batch, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { arAdjustmentBatch = saved });
+                }
+                case "api/ARAdjustment/ReadARAdjustment":
+                {
+                    var json = input as string;
+                    if (string.IsNullOrWhiteSpace(json))
+                    {
+                        return new AccpacOperationResult(ProcessOut.Fail("9999", "inputJson is required."), new { restRoute });
+                    }
+
+                    using var doc = JsonDocument.Parse(json);
+                    var batchNumber = doc.RootElement.TryGetProperty("BatchNumber", out var bn) ? bn.GetString() : null;
+                    var entryNumber = doc.RootElement.TryGetProperty("EntryNumber", out var en) ? en.GetString() : null;
+                    if (string.IsNullOrWhiteSpace(batchNumber) || string.IsNullOrWhiteSpace(entryNumber))
+                    {
+                        return new AccpacOperationResult(ProcessOut.Fail("9999", "BatchNumber and EntryNumber are required."), new { restRoute });
+                    }
+
+                    var (response, adj) = await _arAdjustmentService.ReadAdjustmentAsync(batchNumber, entryNumber, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { arAdjustment = adj });
+                }
+                case "api/ARAdjustment/ReadARAdjustmentBatch":
+                {
+                    var batchNumber = ExtractKey(input, "BatchNumber");
+                    var (response, batch) = await _arAdjustmentService.ReadAdjustmentBatchAsync(batchNumber, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { arAdjustmentBatch = batch });
+                }
+                case "api/ARAdjustment/SyncARAdjustments":
+                {
+                    var req = DeserializeOrThrow<SyncARAdjustments>(input);
+                    var (response, sync) = await _arAdjustmentService.SyncAdjustmentsAsync(req, user, cancellationToken);
                     return new AccpacOperationResult(response, new { sync });
                 }
                 default:
