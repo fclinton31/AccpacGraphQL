@@ -365,3 +365,16 @@ public interface IArItemService
         ClaimsPrincipal user,
         CancellationToken cancellationToken);
 }
+
+public interface IArDocumentsService
+{
+    Task<(ProcessOut Response, AROpenInvoices Documents)> GetDocumentsAsync(
+        AROpenInvoices documents,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken);
+
+    Task<(ProcessOut Response, ARAgedAnalysis Analysis)> GetAgedBalancesAsync(
+        string customerNumber,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken);
+}

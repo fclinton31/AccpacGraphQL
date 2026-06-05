@@ -32,6 +32,7 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
     private readonly IArShipToLocationService _arShipToLocationService;
     private readonly IArCustomerGroupService _arCustomerGroupService;
     private readonly IArItemService _arItemService;
+    private readonly IArDocumentsService _arDocumentsService;
 
     public AccpacOperationExecutor(
         IApVendorService apVendorService,
@@ -53,7 +54,8 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
         IArTermsCodesService arTermsCodesService,
         IArShipToLocationService arShipToLocationService,
         IArCustomerGroupService arCustomerGroupService,
-        IArItemService arItemService)
+        IArItemService arItemService,
+        IArDocumentsService arDocumentsService)
     {
         _apVendorService = apVendorService;
         _apVendorGroupService = apVendorGroupService;
@@ -75,6 +77,7 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
         _arShipToLocationService = arShipToLocationService;
         _arCustomerGroupService = arCustomerGroupService;
         _arItemService = arItemService;
+        _arDocumentsService = arDocumentsService;
     }
 
     public async Task<AccpacOperationResult> ExecuteAsync(
@@ -549,6 +552,43 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
                     var item = DeserializeOrThrow<ARItems>(input);
                     var (response, saved) = await _arItemService.CreateOrUpdateAsync(item, user, cancellationToken);
                     return new AccpacOperationResult(response, new { arItems = saved });
+                }
+                case "api/ARDocuments/GetDocuments":
+                {
+                    var documents = DeserializeOrThrow<AROpenInvoices>(input);
+                    var (response, saved) = await _arDocumentsService.GetDocumentsAsync(documents, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { invoices = saved });
+                }
+                case "api/ARDocuments/GetAgedBalances":
+                {
+                    var json = input as string;
+                    if (string.IsNullOrWhiteSpace(json))
+                    {
+                        return new AccpacOperationResult(ProcessOut.Fail("9999", "inputJson is required."), new { restRoute });
+                    }
+
+                    string? customer = null;
+                    if (json.TrimStart().StartsWith("{", StringComparison.Ordinal))
+                    {
+                        using var doc = JsonDocument.Parse(json);
+                        customer =
+                            doc.RootElement.TryGetProperty("customer", out var c) ? c.GetString() :
+                            doc.RootElement.TryGetProperty("CustomerNumber001", out var cn) ? cn.GetString() :
+                            doc.RootElement.TryGetProperty("CustomerNumber000", out var c0) ? c0.GetString() :
+                            null;
+                    }
+                    else
+                    {
+                        customer = json.Trim().Trim('"');
+                    }
+
+                    if (string.IsNullOrWhiteSpace(customer))
+                    {
+                        return new AccpacOperationResult(ProcessOut.Fail("9999", "customer is required."), new { restRoute });
+                    }
+
+                    var (response, analysis) = await _arDocumentsService.GetAgedBalancesAsync(customer, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { agedAnalysis = analysis });
                 }
                 default:
                     return new AccpacOperationResult(
