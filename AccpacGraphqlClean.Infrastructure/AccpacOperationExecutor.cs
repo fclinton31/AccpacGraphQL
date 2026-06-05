@@ -24,6 +24,7 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
     private readonly IArInvoiceService _arInvoiceService;
     private readonly IArAdjustmentService _arAdjustmentService;
     private readonly IArReceiptService _arReceiptService;
+    private readonly IArRefundService _arRefundService;
 
     public AccpacOperationExecutor(
         IApVendorService apVendorService,
@@ -37,7 +38,8 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
         IApAdjustmentService apAdjustmentService,
         IArInvoiceService arInvoiceService,
         IArAdjustmentService arAdjustmentService,
-        IArReceiptService arReceiptService)
+        IArReceiptService arReceiptService,
+        IArRefundService arRefundService)
     {
         _apVendorService = apVendorService;
         _apVendorGroupService = apVendorGroupService;
@@ -51,6 +53,7 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
         _arInvoiceService = arInvoiceService;
         _arAdjustmentService = arAdjustmentService;
         _arReceiptService = arReceiptService;
+        _arRefundService = arRefundService;
     }
 
     public async Task<AccpacOperationResult> ExecuteAsync(
@@ -382,6 +385,37 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
                 {
                     var req = DeserializeOrThrow<SyncARReceipts>(input);
                     var (response, sync) = await _arReceiptService.SyncReceiptsAsync(req, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { sync });
+                }
+                case "api/ARRefund/CreateARRefund":
+                case "api/ARRefund/UpdateARRefund":
+                {
+                    var refund = DeserializeOrThrow<ARRefund>(input);
+                    var (response, saved) = await _arRefundService.CreateOrUpdateAsync(refund, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { arRefund = saved });
+                }
+                case "api/ARRefund/CreateARRefundBatch":
+                {
+                    var batch = DeserializeOrThrow<ARRefundBatch>(input);
+                    var (response, saved) = await _arRefundService.CreateRefundBatchAsync(batch, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { arRefundBatch = saved });
+                }
+                case "api/ARRefund/ReadARRefund":
+                {
+                    var documentNumber = ExtractKey(input, "DocumentNumber023");
+                    var (response, refund) = await _arRefundService.ReadRefundAsync(documentNumber, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { arRefund = refund });
+                }
+                case "api/ARRefund/ReadARRefundBatch":
+                {
+                    var batchNumber = ExtractKey(input, "BatchNumber");
+                    var (response, batch) = await _arRefundService.ReadRefundBatchAsync(batchNumber, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { arRefundBatch = batch });
+                }
+                case "api/ARRefund/SyncARRefunds":
+                {
+                    var req = DeserializeOrThrow<SyncARRefunds>(input);
+                    var (response, sync) = await _arRefundService.SyncRefundsAsync(req, user, cancellationToken);
                     return new AccpacOperationResult(response, new { sync });
                 }
                 default:

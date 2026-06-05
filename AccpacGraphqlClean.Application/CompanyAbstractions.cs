@@ -249,3 +249,31 @@ public interface IArReceiptService
         ClaimsPrincipal user,
         CancellationToken cancellationToken);
 }
+
+public interface IArRefundService
+{
+    Task<(ProcessOut Response, ARRefund Refund)> CreateOrUpdateAsync(
+        ARRefund refund,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken);
+
+    Task<(ProcessOut Response, ARRefundBatch Batch)> CreateRefundBatchAsync(
+        ARRefundBatch batch,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken);
+
+    Task<(ProcessOut Response, ARRefund Refund)> ReadRefundAsync(
+        string documentNumber,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken);
+
+    Task<(ProcessOut Response, ARRefundBatch Batch)> ReadRefundBatchAsync(
+        string batchNumber,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken);
+
+    Task<(ProcessOut Response, SyncARRefunds Sync)> SyncRefundsAsync(
+        SyncARRefunds request,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken);
+}
