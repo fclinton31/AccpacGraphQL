@@ -17,11 +17,12 @@ public sealed class Sage300Session : IDisposable
 
     public static Sage300Session Open(IConfiguration configuration, CompanyConnectionDetails details)
     {
-        var progId = configuration["Sage300:ComSessionProgId"] ?? "AccpacCOMAPI.AccpacSession";
-        var type = Type.GetTypeFromProgID(progId, throwOnError: false);
-        if (type is null)
+        var configured = configuration["Sage300:ComSessionProgId"];
+        var candidates = BuildProgIdCandidates(configured);
+        var (progId, type) = ResolveComType(candidates);
+        if (type is null || string.IsNullOrWhiteSpace(progId))
         {
-            throw new InvalidOperationException($"Sage 300 COM ProgID not found: {progId}");
+            throw new InvalidOperationException($"Sage 300 COM ProgID not found. Tried: {string.Join(", ", candidates)}");
         }
 
         dynamic session = Activator.CreateInstance(type) ?? throw new InvalidOperationException("Unable to create Accpac session.");
@@ -37,6 +38,41 @@ public sealed class Sage300Session : IDisposable
 
         object dbLink = session.OpenDBLink(dbLinkType, dbLinkFlags);
         return new Sage300Session(session, dbLink);
+    }
+
+    private static IReadOnlyList<string> BuildProgIdCandidates(string? configured)
+    {
+        if (!string.IsNullOrWhiteSpace(configured))
+        {
+            return configured
+                .Split(new[] { ',', ';', '|' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(p => p.Trim())
+                .Where(p => !string.IsNullOrWhiteSpace(p))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+        }
+
+        return new[]
+        {
+            "AccpacCOMAPI.AccpacSession",
+            "Accpac.Session",
+            "ACCPAC.xapiSession",
+            "ACCPAC.ASPSession"
+        };
+    }
+
+    private static (string? ProgId, Type? Type) ResolveComType(IReadOnlyList<string> candidates)
+    {
+        foreach (var progId in candidates)
+        {
+            var type = Type.GetTypeFromProgID(progId, throwOnError: false);
+            if (type is not null)
+            {
+                return (progId, type);
+            }
+        }
+
+        return (null, null);
     }
 
     public dynamic OpenView(string viewId)

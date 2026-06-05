@@ -1,17 +1,17 @@
 using System.Security.Claims;
 using AccpacGraphqlClean.Application;
 using AccpacGraphqlClean.Domain;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 
 namespace AccpacGraphqlClean.Infrastructure;
 
 public sealed class EfCompanyConnectionDetailsProvider : ICompanyConnectionDetailsProvider
 {
-    private readonly SettingsDbContext _db;
+    private readonly IConfiguration _configuration;
 
-    public EfCompanyConnectionDetailsProvider(SettingsDbContext db)
+    public EfCompanyConnectionDetailsProvider(IConfiguration configuration)
     {
-        _db = db;
+        _configuration = configuration;
     }
 
     public async Task<CompanyConnectionDetails> GetAsync(ClaimsPrincipal user, CancellationToken cancellationToken)
@@ -22,7 +22,7 @@ public sealed class EfCompanyConnectionDetailsProvider : ICompanyConnectionDetai
             throw new InvalidOperationException("Missing CmpKey claim.");
         }
 
-        var company = await _db.Companies.SingleOrDefaultAsync(c => c.CompanyKey == companyKey, cancellationToken);
+        var company = await SettingsSqlite.TryGetCompanyByKeyAsync(_configuration, companyKey, cancellationToken);
         if (company is null)
         {
             throw new InvalidOperationException("Unknown company key.");
@@ -31,4 +31,3 @@ public sealed class EfCompanyConnectionDetailsProvider : ICompanyConnectionDetai
         return new CompanyConnectionDetails(company.CompanyId, company.UserName, company.Password);
     }
 }
-

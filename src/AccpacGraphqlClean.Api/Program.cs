@@ -53,6 +53,12 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<SettingsDbContext>();
+    var bootstrapEnabled = bool.TryParse(builder.Configuration["Bootstrap:Enable"], out var b) && b;
+    if (!bootstrapEnabled)
+    {
+        goto EndBootstrap;
+    }
+
     await db.Database.EnsureCreatedAsync();
 
     var bootstrapUserName = builder.Configuration["Bootstrap:UserName"];
@@ -74,6 +80,7 @@ using (var scope = app.Services.CreateScope())
             {
                 UserName = bootstrapUserName,
                 Email = bootstrapEmail,
+                FullName = bootstrapUserName,
                 PasswordHash = PasswordHasher.Hash(bootstrapPassword),
                 Role = bootstrapRole
             });
@@ -99,6 +106,8 @@ using (var scope = app.Services.CreateScope())
     }
 
     await db.SaveChangesAsync();
+
+EndBootstrap: ;
 }
 
 app.UseRouting();
