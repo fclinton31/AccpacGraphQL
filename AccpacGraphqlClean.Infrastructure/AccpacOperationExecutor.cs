@@ -25,6 +25,8 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
     private readonly IArAdjustmentService _arAdjustmentService;
     private readonly IArReceiptService _arReceiptService;
     private readonly IArRefundService _arRefundService;
+    private readonly IArBillingCyclesService _arBillingCyclesService;
+    private readonly IArSalesPersonsService _arSalesPersonsService;
 
     public AccpacOperationExecutor(
         IApVendorService apVendorService,
@@ -39,7 +41,9 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
         IArInvoiceService arInvoiceService,
         IArAdjustmentService arAdjustmentService,
         IArReceiptService arReceiptService,
-        IArRefundService arRefundService)
+        IArRefundService arRefundService,
+        IArBillingCyclesService arBillingCyclesService,
+        IArSalesPersonsService arSalesPersonsService)
     {
         _apVendorService = apVendorService;
         _apVendorGroupService = apVendorGroupService;
@@ -54,6 +58,8 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
         _arAdjustmentService = arAdjustmentService;
         _arReceiptService = arReceiptService;
         _arRefundService = arRefundService;
+        _arBillingCyclesService = arBillingCyclesService;
+        _arSalesPersonsService = arSalesPersonsService;
     }
 
     public async Task<AccpacOperationResult> ExecuteAsync(
@@ -417,6 +423,26 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
                     var req = DeserializeOrThrow<SyncARRefunds>(input);
                     var (response, sync) = await _arRefundService.SyncRefundsAsync(req, user, cancellationToken);
                     return new AccpacOperationResult(response, new { sync });
+                }
+                case "api/ARBillingCycle/CreateARBillingCycles":
+                case "api/ARBillingCycle/UpdateARBillingCycles":
+                {
+                    var billingCycles = DeserializeOrThrow<ARBillingCycles>(input);
+                    var (response, saved) = await _arBillingCyclesService.CreateOrUpdateAsync(billingCycles, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { billingCycles = saved });
+                }
+                case "api/ARBillingCycle/ReadARBillingCycles":
+                {
+                    var billingCycle = ExtractKey(input, "BillingCycle000");
+                    var (response, billingCycles) = await _arBillingCyclesService.ReadAsync(billingCycle, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { billingCycles });
+                }
+                case "api/ARSalesperson/CreateARSalesPersons":
+                case "api/ARSalesperson/UpdateARSalesPersons":
+                {
+                    var salesPerson = DeserializeOrThrow<ARSalesPersons>(input);
+                    var (response, saved) = await _arSalesPersonsService.CreateOrUpdateAsync(salesPerson, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { salesPerson = saved });
                 }
                 default:
                     return new AccpacOperationResult(

@@ -277,3 +277,24 @@ public interface IArRefundService
         ClaimsPrincipal user,
         CancellationToken cancellationToken);
 }
+
+public interface IArBillingCyclesService
+{
+    Task<(ProcessOut Response, ARBillingCycles BillingCycles)> CreateOrUpdateAsync(
+        ARBillingCycles billingCycles,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken);
+
+    Task<(ProcessOut Response, ARBillingCycles BillingCycles)> ReadAsync(
+        string billingCycle,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken);
+}
+
+public interface IArSalesPersonsService
+{
+    Task<(ProcessOut Response, ARSalesPersons SalesPerson)> CreateOrUpdateAsync(
+        ARSalesPersons salesPerson,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken);
+}
