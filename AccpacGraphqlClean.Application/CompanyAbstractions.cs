@@ -316,3 +316,36 @@ public interface IArCustomerService
         ClaimsPrincipal user,
         CancellationToken cancellationToken);
 }
+
+public interface IArTermsCodesService
+{
+    Task<(ProcessOut Response, ARTermsCodes TermsCodes)> CreateOrUpdateAsync(
+        ARTermsCodes termsCodes,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken);
+}
+
+public interface IArShipToLocationService
+{
+    Task<(ProcessOut Response, ARShipToLocations ShipToLocation)> CreateOrUpdateAsync(
+        ARShipToLocations shipToLocation,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken);
+
+    Task<(ProcessOut Response, ARShipToLocations ShipToLocation)> ReadAsync(
+        string customerNumber,
+        string shipToLocation,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken);
+
+    Task<(ProcessOut Response, ARCustomerShipToLocations ShipToLocations)> ReadCustomerShipToLocationsAsync(
+        string customerNumber,
+        string? shipToId,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken);
+
+    Task<(ProcessOut Response, SyncARShipToLocations Sync)> SyncAsync(
+        SyncARShipToLocations request,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken);
+}

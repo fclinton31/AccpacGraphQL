@@ -28,6 +28,8 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
     private readonly IArBillingCyclesService _arBillingCyclesService;
     private readonly IArSalesPersonsService _arSalesPersonsService;
     private readonly IArCustomerService _arCustomerService;
+    private readonly IArTermsCodesService _arTermsCodesService;
+    private readonly IArShipToLocationService _arShipToLocationService;
 
     public AccpacOperationExecutor(
         IApVendorService apVendorService,
@@ -45,7 +47,9 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
         IArRefundService arRefundService,
         IArBillingCyclesService arBillingCyclesService,
         IArSalesPersonsService arSalesPersonsService,
-        IArCustomerService arCustomerService)
+        IArCustomerService arCustomerService,
+        IArTermsCodesService arTermsCodesService,
+        IArShipToLocationService arShipToLocationService)
     {
         _apVendorService = apVendorService;
         _apVendorGroupService = apVendorGroupService;
@@ -63,6 +67,8 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
         _arBillingCyclesService = arBillingCyclesService;
         _arSalesPersonsService = arSalesPersonsService;
         _arCustomerService = arCustomerService;
+        _arTermsCodesService = arTermsCodesService;
+        _arShipToLocationService = arShipToLocationService;
     }
 
     public async Task<AccpacOperationResult> ExecuteAsync(
@@ -465,6 +471,64 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
                     var customerNumber = ExtractKey(input, "CustomerNumber000");
                     var (response, customerBalance) = await _arCustomerService.ReadBalanceAsync(customerNumber, user, cancellationToken);
                     return new AccpacOperationResult(response, new { customerBalance });
+                }
+                case "api/ARTermsCode/CreateARTermsCodes":
+                case "api/ARTermsCode/UpdateARTermsCodes":
+                {
+                    var termsCodes = DeserializeOrThrow<ARTermsCodes>(input);
+                    var (response, saved) = await _arTermsCodesService.CreateOrUpdateAsync(termsCodes, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { termsCodes = saved });
+                }
+                case "api/ARShipToLocation/CreateARShipToLocation":
+                case "api/ARShipToLocation/UpdateARShipToLocation":
+                {
+                    var shipTo = DeserializeOrThrow<ARShipToLocations>(input);
+                    var (response, saved) = await _arShipToLocationService.CreateOrUpdateAsync(shipTo, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { shipToLocation = saved });
+                }
+                case "api/ARShipToLocation/ReadARShipToLocation":
+                {
+                    var json = input as string;
+                    if (string.IsNullOrWhiteSpace(json))
+                    {
+                        return new AccpacOperationResult(ProcessOut.Fail("9999", "inputJson is required."), new { restRoute });
+                    }
+
+                    using var doc = JsonDocument.Parse(json);
+                    var customerNumber = doc.RootElement.TryGetProperty("CustomerNumber", out var cn) ? cn.GetString() : null;
+                    var shipToLocation = doc.RootElement.TryGetProperty("ShipToLocation", out var st) ? st.GetString() : null;
+                    if (string.IsNullOrWhiteSpace(customerNumber) || string.IsNullOrWhiteSpace(shipToLocation))
+                    {
+                        return new AccpacOperationResult(ProcessOut.Fail("9999", "CustomerNumber and ShipToLocation are required."), new { restRoute });
+                    }
+
+                    var (response, shipTo) = await _arShipToLocationService.ReadAsync(customerNumber, shipToLocation, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { shipToLocation = shipTo });
+                }
+                case "api/ARShipToLocation/ReadCustomerShipToLocations":
+                {
+                    var json = input as string;
+                    if (string.IsNullOrWhiteSpace(json))
+                    {
+                        return new AccpacOperationResult(ProcessOut.Fail("9999", "inputJson is required."), new { restRoute });
+                    }
+
+                    using var doc = JsonDocument.Parse(json);
+                    var customerNumber = doc.RootElement.TryGetProperty("CustomerNumber", out var cn) ? cn.GetString() : null;
+                    var shipToId = doc.RootElement.TryGetProperty("ShipToID", out var st) ? st.GetString() : null;
+                    if (string.IsNullOrWhiteSpace(customerNumber))
+                    {
+                        return new AccpacOperationResult(ProcessOut.Fail("9999", "CustomerNumber is required."), new { restRoute });
+                    }
+
+                    var (response, shipTos) = await _arShipToLocationService.ReadCustomerShipToLocationsAsync(customerNumber, shipToId, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { shipToLocations = shipTos });
+                }
+                case "api/ARShipToLocation/SyncARShipToLocation":
+                {
+                    var req = DeserializeOrThrow<SyncARShipToLocations>(input);
+                    var (response, sync) = await _arShipToLocationService.SyncAsync(req, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { sync });
                 }
                 default:
                     return new AccpacOperationResult(
