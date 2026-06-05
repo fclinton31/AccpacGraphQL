@@ -31,6 +31,7 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
     private readonly IArTermsCodesService _arTermsCodesService;
     private readonly IArShipToLocationService _arShipToLocationService;
     private readonly IArCustomerGroupService _arCustomerGroupService;
+    private readonly IArItemService _arItemService;
 
     public AccpacOperationExecutor(
         IApVendorService apVendorService,
@@ -51,7 +52,8 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
         IArCustomerService arCustomerService,
         IArTermsCodesService arTermsCodesService,
         IArShipToLocationService arShipToLocationService,
-        IArCustomerGroupService arCustomerGroupService)
+        IArCustomerGroupService arCustomerGroupService,
+        IArItemService arItemService)
     {
         _apVendorService = apVendorService;
         _apVendorGroupService = apVendorGroupService;
@@ -72,6 +74,7 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
         _arTermsCodesService = arTermsCodesService;
         _arShipToLocationService = arShipToLocationService;
         _arCustomerGroupService = arCustomerGroupService;
+        _arItemService = arItemService;
     }
 
     public async Task<AccpacOperationResult> ExecuteAsync(
@@ -539,6 +542,13 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
                     var customerGroup = DeserializeOrThrow<ARCustomerGroups>(input);
                     var (response, saved) = await _arCustomerGroupService.CreateOrUpdateAsync(customerGroup, user, cancellationToken);
                     return new AccpacOperationResult(response, new { customerGroup = saved });
+                }
+                case "api/ARItem/CreateARItems":
+                case "api/ARItem/UpdateARItems":
+                {
+                    var item = DeserializeOrThrow<ARItems>(input);
+                    var (response, saved) = await _arItemService.CreateOrUpdateAsync(item, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { arItems = saved });
                 }
                 default:
                     return new AccpacOperationResult(

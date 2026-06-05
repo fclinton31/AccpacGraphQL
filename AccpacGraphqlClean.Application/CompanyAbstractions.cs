@@ -357,3 +357,11 @@ public interface IArCustomerGroupService
         ClaimsPrincipal user,
         CancellationToken cancellationToken);
 }
+
+public interface IArItemService
+{
+    Task<(ProcessOut Response, ARItems Item)> CreateOrUpdateAsync(
+        ARItems item,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken);
+}
