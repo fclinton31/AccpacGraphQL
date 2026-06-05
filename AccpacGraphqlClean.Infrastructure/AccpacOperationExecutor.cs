@@ -30,6 +30,7 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
     private readonly IArCustomerService _arCustomerService;
     private readonly IArTermsCodesService _arTermsCodesService;
     private readonly IArShipToLocationService _arShipToLocationService;
+    private readonly IArCustomerGroupService _arCustomerGroupService;
 
     public AccpacOperationExecutor(
         IApVendorService apVendorService,
@@ -49,7 +50,8 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
         IArSalesPersonsService arSalesPersonsService,
         IArCustomerService arCustomerService,
         IArTermsCodesService arTermsCodesService,
-        IArShipToLocationService arShipToLocationService)
+        IArShipToLocationService arShipToLocationService,
+        IArCustomerGroupService arCustomerGroupService)
     {
         _apVendorService = apVendorService;
         _apVendorGroupService = apVendorGroupService;
@@ -69,6 +71,7 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
         _arCustomerService = arCustomerService;
         _arTermsCodesService = arTermsCodesService;
         _arShipToLocationService = arShipToLocationService;
+        _arCustomerGroupService = arCustomerGroupService;
     }
 
     public async Task<AccpacOperationResult> ExecuteAsync(
@@ -529,6 +532,13 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
                     var req = DeserializeOrThrow<SyncARShipToLocations>(input);
                     var (response, sync) = await _arShipToLocationService.SyncAsync(req, user, cancellationToken);
                     return new AccpacOperationResult(response, new { sync });
+                }
+                case "api/ARCustomerGroup/CreateARCustomerGroupss":
+                case "api/ARCustomerGroup/UpdateARCustomerGroups":
+                {
+                    var customerGroup = DeserializeOrThrow<ARCustomerGroups>(input);
+                    var (response, saved) = await _arCustomerGroupService.CreateOrUpdateAsync(customerGroup, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { customerGroup = saved });
                 }
                 default:
                     return new AccpacOperationResult(

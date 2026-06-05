@@ -349,3 +349,11 @@ public interface IArShipToLocationService
         ClaimsPrincipal user,
         CancellationToken cancellationToken);
 }
+
+public interface IArCustomerGroupService
+{
+    Task<(ProcessOut Response, ARCustomerGroups CustomerGroup)> CreateOrUpdateAsync(
+        ARCustomerGroups customerGroup,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken);
+}
