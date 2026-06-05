@@ -298,3 +298,21 @@ public interface IArSalesPersonsService
         ClaimsPrincipal user,
         CancellationToken cancellationToken);
 }
+
+public interface IArCustomerService
+{
+    Task<(ProcessOut Response, ARCustomers Customer)> CreateOrUpdateAsync(
+        ARCustomers customer,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken);
+
+    Task<(ProcessOut Response, ARCustomers Customer)> ReadAsync(
+        string customerNumber,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken);
+
+    Task<(ProcessOut Response, ARCustomerBalance Balance)> ReadBalanceAsync(
+        string customerNumber,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken);
+}

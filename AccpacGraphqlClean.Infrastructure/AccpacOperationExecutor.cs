@@ -27,6 +27,7 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
     private readonly IArRefundService _arRefundService;
     private readonly IArBillingCyclesService _arBillingCyclesService;
     private readonly IArSalesPersonsService _arSalesPersonsService;
+    private readonly IArCustomerService _arCustomerService;
 
     public AccpacOperationExecutor(
         IApVendorService apVendorService,
@@ -43,7 +44,8 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
         IArReceiptService arReceiptService,
         IArRefundService arRefundService,
         IArBillingCyclesService arBillingCyclesService,
-        IArSalesPersonsService arSalesPersonsService)
+        IArSalesPersonsService arSalesPersonsService,
+        IArCustomerService arCustomerService)
     {
         _apVendorService = apVendorService;
         _apVendorGroupService = apVendorGroupService;
@@ -60,6 +62,7 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
         _arRefundService = arRefundService;
         _arBillingCyclesService = arBillingCyclesService;
         _arSalesPersonsService = arSalesPersonsService;
+        _arCustomerService = arCustomerService;
     }
 
     public async Task<AccpacOperationResult> ExecuteAsync(
@@ -443,6 +446,25 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
                     var salesPerson = DeserializeOrThrow<ARSalesPersons>(input);
                     var (response, saved) = await _arSalesPersonsService.CreateOrUpdateAsync(salesPerson, user, cancellationToken);
                     return new AccpacOperationResult(response, new { salesPerson = saved });
+                }
+                case "api/ARCustomer/CreateARCustomer":
+                case "api/ARCustomer/UpdateARCustomer":
+                {
+                    var customer = DeserializeOrThrow<ARCustomers>(input);
+                    var (response, saved) = await _arCustomerService.CreateOrUpdateAsync(customer, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { customer = saved });
+                }
+                case "api/ARCustomer/ReadARCustomer":
+                {
+                    var customerNumber = ExtractKey(input, "CustomerNumber000");
+                    var (response, customer) = await _arCustomerService.ReadAsync(customerNumber, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { customer });
+                }
+                case "api/ARCustomer/ReadARCustomerBalance":
+                {
+                    var customerNumber = ExtractKey(input, "CustomerNumber000");
+                    var (response, customerBalance) = await _arCustomerService.ReadBalanceAsync(customerNumber, user, cancellationToken);
+                    return new AccpacOperationResult(response, new { customerBalance });
                 }
                 default:
                     return new AccpacOperationResult(
