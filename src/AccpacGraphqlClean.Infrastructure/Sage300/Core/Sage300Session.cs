@@ -62,21 +62,45 @@ public sealed class Sage300Session : IDisposable
     {
         if (!string.IsNullOrWhiteSpace(configured))
         {
-            return configured
+            var list = configured
                 .Split(new[] { ',', ';', '|' }, StringSplitOptions.RemoveEmptyEntries)
                 .Select(p => p.Trim())
                 .Where(p => !string.IsNullOrWhiteSpace(p))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
+
+            return OrderByKnownPriority(list);
         }
 
-        return new[]
+        return OrderByKnownPriority(new[]
         {
             "AccpacCOMAPI.AccpacSession",
             "Accpac.Session",
             "ACCPAC.xapiSession",
             "ACCPAC.ASPSession"
+        });
+    }
+
+    private static IReadOnlyList<string> OrderByKnownPriority(IReadOnlyList<string> candidates)
+    {
+        var priority = new[]
+        {
+            "AccpacCOMAPI.AccpacSession",
+            "ACCPAC.xapiSession",
+            "Accpac.Session",
+            "ACCPAC.ASPSession"
         };
+
+        var priorityIndex = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        for (var i = 0; i < priority.Length; i++)
+        {
+            priorityIndex[priority[i]] = i;
+        }
+
+        return candidates
+            .OrderBy(c => priorityIndex.TryGetValue(c, out var idx) ? idx : int.MaxValue)
+            .ThenBy(c => c, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     private static (string? ProgId, Type? Type) ResolveComType(IReadOnlyList<string> candidates)
