@@ -77,44 +77,112 @@ public sealed class Sage300Session : IDisposable
 
     public dynamic OpenView(string viewId)
     {
-        var view = InvokeOpenView(_dbLink, viewId);
-        return view;
+        return InvokeOpenView(_dbLink, viewId);
     }
 
     public int BeginTransaction()
     {
         var args = new object?[] { 0 };
-        Invoke(_dbLink, "TransactionBegin", args);
-        return args[0] is int i ? i : 0;
+        if (TryInvokeCom(_dbLink, "TransactionBegin", args))
+        {
+            return args[0] is int i ? i : 0;
+        }
+
+        if (TryInvokeCom(_session, "TransactionBegin", args))
+        {
+            return args[0] is int i ? i : 0;
+        }
+
+        if (TryInvokeCom(_dbLink, "BeginTransaction", Array.Empty<object?>(), out var result)
+            || TryInvokeCom(_session, "BeginTransaction", Array.Empty<object?>(), out result))
+        {
+            return result is int i ? i : 0;
+        }
+
+        throw new MissingMethodException("Unable to begin transaction. Tried TransactionBegin/BeginTransaction on DBLink and Session.");
     }
 
     public void CommitTransaction(int transactionId)
     {
-        Invoke(_dbLink, "TransactionCommit", new object?[] { transactionId });
+        if (TryInvokeCom(_dbLink, "TransactionCommit", new object?[] { transactionId })
+            || TryInvokeCom(_session, "TransactionCommit", new object?[] { transactionId })
+            || TryInvokeCom(_dbLink, "CommitTransaction", new object?[] { transactionId })
+            || TryInvokeCom(_session, "CommitTransaction", new object?[] { transactionId })
+            || TryInvokeCom(_dbLink, "CommitTransaction", Array.Empty<object?>())
+            || TryInvokeCom(_session, "CommitTransaction", Array.Empty<object?>()))
+        {
+            return;
+        }
+
+        throw new MissingMethodException("Unable to commit transaction. Tried TransactionCommit/CommitTransaction on DBLink and Session.");
     }
 
     public void RollbackTransaction(int transactionId)
     {
-        Invoke(_dbLink, "TransactionRollback", new object?[] { transactionId });
+        if (TryInvokeCom(_dbLink, "TransactionRollback", new object?[] { transactionId })
+            || TryInvokeCom(_session, "TransactionRollback", new object?[] { transactionId })
+            || TryInvokeCom(_dbLink, "RollbackTransaction", new object?[] { transactionId })
+            || TryInvokeCom(_session, "RollbackTransaction", new object?[] { transactionId })
+            || TryInvokeCom(_dbLink, "RollbackTransaction", Array.Empty<object?>())
+            || TryInvokeCom(_session, "RollbackTransaction", Array.Empty<object?>()))
+        {
+            return;
+        }
+
+        throw new MissingMethodException("Unable to rollback transaction. Tried TransactionRollback/RollbackTransaction on DBLink and Session.");
     }
 
     private static object InvokeOpenView(object dbLink, string viewId)
     {
-        var args = new object?[] { viewId, null };
-        Invoke(dbLink, "OpenView", args);
-        return args[1] ?? throw new InvalidOperationException("OpenView returned null.");
-    }
-
-    private static object? Invoke(object target, string methodName, object?[] args)
-    {
-        var type = target.GetType();
-        var method = type.GetMethod(methodName, BindingFlags.Instance | BindingFlags.Public);
-        if (method is null)
+        if (TryInvokeCom(dbLink, "OpenView", new object?[] { viewId }, out var direct) && direct is not null)
         {
-            throw new MissingMethodException(type.FullName, methodName);
+            return direct;
         }
 
-        return method.Invoke(target, args);
+        var args = new object?[] { viewId, null };
+        if (TryInvokeCom(dbLink, "OpenView", args))
+        {
+            return args[1] ?? throw new InvalidOperationException("OpenView returned null.");
+        }
+
+        throw new MissingMethodException("Unable to open view. Tried OpenView(viewId) and OpenView(viewId, out view).");
+    }
+
+    private static bool TryInvokeCom(object target, string methodName, object?[] args)
+    {
+        try
+        {
+            _ = target.GetType().InvokeMember(
+                methodName,
+                BindingFlags.InvokeMethod | BindingFlags.Public | BindingFlags.Instance,
+                binder: null,
+                target: target,
+                args: args);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool TryInvokeCom(object target, string methodName, object?[] args, out object? result)
+    {
+        try
+        {
+            result = target.GetType().InvokeMember(
+                methodName,
+                BindingFlags.InvokeMethod | BindingFlags.Public | BindingFlags.Instance,
+                binder: null,
+                target: target,
+                args: args);
+            return true;
+        }
+        catch
+        {
+            result = null;
+            return false;
+        }
     }
 
     public void Dispose()
