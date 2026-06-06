@@ -90,8 +90,9 @@ public sealed class Sage300Session : IDisposable
             }
         }
 
+        var arch = Environment.Is64BitProcess ? "x64" : "x86";
         throw new InvalidOperationException(
-            $"Sage 300 COM session init method not found on any configured ProgID. Tried: {string.Join(", ", candidates)}");
+            $"Sage 300 COM session init method not found on any configured ProgID. Tried: {string.Join(", ", candidates)}. ProcessArch={arch}. If Sage COM is 32-bit, run the API as win-x86.");
     }
 
     private static IReadOnlyList<string> BuildProgIdCandidates(string? configured)
@@ -105,16 +106,40 @@ public sealed class Sage300Session : IDisposable
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
 
-            return OrderByKnownPriority(list);
+            return OrderByKnownPriority(ExpandProgIds(list));
         }
 
-        return OrderByKnownPriority(new[]
+        return OrderByKnownPriority(ExpandProgIds(new[]
         {
             "AccpacCOMAPI.AccpacSession",
             "Accpac.Session",
             "ACCPAC.xapiSession",
             "ACCPAC.ASPSession"
-        });
+        }));
+    }
+
+    private static IReadOnlyList<string> ExpandProgIds(IReadOnlyList<string> progIds)
+    {
+        var result = new List<string>(progIds.Count * 2);
+        foreach (var p in progIds)
+        {
+            if (string.IsNullOrWhiteSpace(p))
+            {
+                continue;
+            }
+
+            result.Add(p);
+
+            var lastDot = p.LastIndexOf('.');
+            if (lastDot > 0 && lastDot < p.Length - 1 && int.TryParse(p[(lastDot + 1)..], out _))
+            {
+                continue;
+            }
+
+            result.Add(p + ".1");
+        }
+
+        return result.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
     }
 
     private static IReadOnlyList<string> OrderByKnownPriority(IReadOnlyList<string> candidates)
@@ -122,6 +147,7 @@ public sealed class Sage300Session : IDisposable
         var priority = new[]
         {
             "AccpacCOMAPI.AccpacSession",
+            "AccpacCOMAPI.AccpacSession.1",
             "ACCPAC.xapiSession",
             "Accpac.Session",
             "ACCPAC.ASPSession"
