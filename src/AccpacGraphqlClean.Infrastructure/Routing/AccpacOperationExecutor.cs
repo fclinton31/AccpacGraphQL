@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using AccpacGraphqlClean.Application;
 using AccpacGraphqlClean.Domain;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Configuration;
 
 namespace AccpacGraphqlClean.Infrastructure;
@@ -48,6 +49,7 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
     private readonly IArStatementRunService _arStatementRunService;
     private readonly IConfiguration _configuration;
     private readonly ICompanyConnectionDetailsProvider _companyDetails;
+    private readonly ILogger<AccpacOperationExecutor> _logger;
 
     public AccpacOperationExecutor(
         IApVendorService apVendorService,
@@ -73,7 +75,8 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
         IArDocumentsService arDocumentsService,
         IArStatementRunService arStatementRunService,
         IConfiguration configuration,
-        ICompanyConnectionDetailsProvider companyDetails)
+        ICompanyConnectionDetailsProvider companyDetails,
+        ILogger<AccpacOperationExecutor> logger)
     {
         _apVendorService = apVendorService;
         _apVendorGroupService = apVendorGroupService;
@@ -99,6 +102,7 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
         _arStatementRunService = arStatementRunService;
         _configuration = configuration;
         _companyDetails = companyDetails;
+        _logger = logger;
     }
 
     public async Task<AccpacOperationResult> ExecuteAsync(
@@ -109,6 +113,7 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
     {
         try
         {
+            _logger.LogInformation("Accpac route start {RestRoute}", restRoute);
             switch (restRoute)
             {
                 case "api/APVendor/CreateAPVendor":
@@ -494,6 +499,7 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
                 {
                     var customerNumber = ExtractKey(input, "CustomerNumber000");
                     var (response, customer) = await _arCustomerService.ReadAsync(customerNumber, user, cancellationToken);
+                    _logger.LogInformation("Accpac route end {RestRoute} {ReturnCode}", restRoute, response.ReturnCode);
                     return new AccpacOperationResult(response, Data(("customer", customer)));
                 }
                 case "api/ARCustomer/ReadARCustomerBalance":
@@ -1785,9 +1791,8 @@ public sealed class AccpacOperationExecutor : IAccpacOperationExecutor
         }
         catch (Exception ex)
         {
-            return new AccpacOperationResult(
-                ProcessOut.Fail("9999", ex.Message),
-                Data(("restRoute", restRoute)));
+            _logger.LogError(ex, "Accpac route failed {RestRoute}", restRoute);
+            return new AccpacOperationResult(ProcessOut.Fail("9999", ex.Message), Data(("restRoute", restRoute)));
         }
     }
 
