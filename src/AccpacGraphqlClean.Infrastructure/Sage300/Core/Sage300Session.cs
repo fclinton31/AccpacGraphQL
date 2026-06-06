@@ -30,12 +30,19 @@ public sealed class Sage300Session : IDisposable
         var appId = configuration["Sage300:AppId"] ?? "XX";
         var appVersion = configuration["Sage300:AppVersion"] ?? "69A";
 
-        session.Init("", appId, appId + "1000", appVersion);
+        if (!TryInvokeCom(session, "Init", new object?[] { "", appId, appId + "1000", appVersion })
+            && !TryInvokeCom(session, "Init", new object?[] { "", appId, appId + "1000", appVersion, "" })
+            && !TryInvokeCom(session, "Init2", new object?[] { "", appId, appId + "1000", appVersion })
+            && !TryInvokeCom(session, "InitSession", new object?[] { "", appId, appId + "1000", appVersion }))
+        {
+            throw new MissingMethodException($"Sage 300 COM session init method not found. ProgID={progId}");
+        }
+
         var flags = int.TryParse(configuration["Sage300:DbLinkFlagsReadWrite"], out var f) ? f : 2;
         if (!TryInvokeCom(session, "Open", new object?[] { details.UserName, details.Password, details.CompanyId, DateTime.Today, flags })
             && !TryInvokeCom(session, "Open", new object?[] { details.UserName, details.Password, details.CompanyId, DateTime.Today, 0, "" }))
         {
-            throw new InvalidOperationException("Unable to open Sage 300 session (Open method not found for known signatures).");
+            throw new InvalidOperationException($"Unable to open Sage 300 session (Open method not found for known signatures). ProgID={progId}");
         }
 
         var dbLinkType = int.TryParse(configuration["Sage300:DbLinkTypeCompany"], out var t) ? t : 1;
