@@ -244,6 +244,39 @@ public sealed class Sage300Session : IDisposable
             errors.Add($"DBLink.OpenView(viewId, ref object): {ex.Message}");
         }
 
+        if (TryParseNumericViewId(viewId, out var numericViewId))
+        {
+            try
+            {
+                dynamic d = dbLink;
+                object? view;
+                d.OpenView(numericViewId, out view);
+                if (view is not null)
+                {
+                    return view;
+                }
+            }
+            catch (Exception ex)
+            {
+                errors.Add($"DBLink.OpenView(intViewId, out object): {ex.Message}");
+            }
+
+            try
+            {
+                dynamic d = dbLink;
+                object? view = null;
+                d.OpenView(numericViewId, ref view);
+                if (view is not null)
+                {
+                    return view;
+                }
+            }
+            catch (Exception ex)
+            {
+                errors.Add($"DBLink.OpenView(intViewId, ref object): {ex.Message}");
+            }
+        }
+
         string? err = null;
         var argSets = new[]
         {
@@ -297,6 +330,23 @@ public sealed class Sage300Session : IDisposable
         var suffix = errors.Count == 0 ? string.Empty : " Errors: " + string.Join(" | ", errors.Distinct());
         throw new InvalidOperationException(
             $"Unable to open view '{viewId}'. ProgID={progId}. DBLinkType={dbLink.GetType().FullName}.{suffix}");
+    }
+
+    private static bool TryParseNumericViewId(string viewId, out int numericViewId)
+    {
+        numericViewId = 0;
+        if (string.IsNullOrWhiteSpace(viewId) || viewId.Length < 3)
+        {
+            return false;
+        }
+
+        var digits = viewId;
+        if (char.IsLetter(viewId[0]) && char.IsLetter(viewId[1]))
+        {
+            digits = viewId[2..];
+        }
+
+        return int.TryParse(digits, out numericViewId);
     }
 
     private static bool TryInvokeCom(object target, string methodName, object?[] args)
