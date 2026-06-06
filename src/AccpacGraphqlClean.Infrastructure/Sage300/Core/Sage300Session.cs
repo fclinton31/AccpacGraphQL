@@ -214,24 +214,37 @@ public sealed class Sage300Session : IDisposable
     {
         var errors = new List<string>();
 
-        if (TryInvokeComWithResult(dbLink, "OpenView", new object?[] { viewId }, out var direct, out var err) && direct is not null)
+        try
         {
-            return direct;
+            dynamic d = dbLink;
+            object? view;
+            d.OpenView(viewId, out view);
+            if (view is not null)
+            {
+                return view;
+            }
         }
-        if (!string.IsNullOrWhiteSpace(err))
+        catch (Exception ex)
         {
-            errors.Add($"DBLink.OpenView(viewId): {err}");
-        }
-
-        if (TryInvokeComWithResult(session, "OpenView", new object?[] { viewId }, out direct, out err) && direct is not null)
-        {
-            return direct;
-        }
-        if (!string.IsNullOrWhiteSpace(err))
-        {
-            errors.Add($"Session.OpenView(viewId): {err}");
+            errors.Add($"DBLink.OpenView(viewId, out object): {ex.Message}");
         }
 
+        try
+        {
+            dynamic d = dbLink;
+            object? view = null;
+            d.OpenView(viewId, ref view);
+            if (view is not null)
+            {
+                return view;
+            }
+        }
+        catch (Exception ex)
+        {
+            errors.Add($"DBLink.OpenView(viewId, ref object): {ex.Message}");
+        }
+
+        string? err = null;
         var argSets = new[]
         {
             new object?[] { viewId, null },
