@@ -77,7 +77,7 @@ public sealed class Sage300Session : IDisposable
 
     public dynamic OpenView(string viewId)
     {
-        return InvokeOpenView(_dbLink, viewId);
+        return InvokeOpenView(_dbLink, _session, viewId);
     }
 
     public int BeginTransaction()
@@ -132,20 +132,53 @@ public sealed class Sage300Session : IDisposable
         throw new MissingMethodException("Unable to rollback transaction. Tried TransactionRollback/RollbackTransaction on DBLink and Session.");
     }
 
-    private static object InvokeOpenView(object dbLink, string viewId)
+    private static object InvokeOpenView(object dbLink, object session, string viewId)
     {
-        if (TryInvokeCom(dbLink, "OpenView", new object?[] { viewId }, out var direct) && direct is not null)
+        object? direct;
+        if (TryInvokeCom(dbLink, "OpenView", new object?[] { viewId }, out direct) && direct is not null)
         {
             return direct;
         }
 
-        var args = new object?[] { viewId, null };
-        if (TryInvokeCom(dbLink, "OpenView", args))
+        if (TryInvokeCom(session, "OpenView", new object?[] { viewId }, out direct) && direct is not null)
         {
-            return args[1] ?? throw new InvalidOperationException("OpenView returned null.");
+            return direct;
         }
 
-        throw new MissingMethodException("Unable to open view. Tried OpenView(viewId) and OpenView(viewId, out view).");
+        var argSets = new[]
+        {
+            new object?[] { viewId, null },
+            new object?[] { viewId, new object() },
+            new object?[] { viewId, DBNull.Value }
+        };
+
+        foreach (var args in argSets)
+        {
+            if (TryInvokeCom(dbLink, "OpenView", args))
+            {
+                return args.Length > 1 && args[1] is not null ? args[1]! : throw new InvalidOperationException("OpenView returned null.");
+            }
+        }
+
+        foreach (var args in argSets)
+        {
+            if (TryInvokeCom(session, "OpenView", args))
+            {
+                return args.Length > 1 && args[1] is not null ? args[1]! : throw new InvalidOperationException("OpenView returned null.");
+            }
+        }
+
+        if (TryInvokeCom(dbLink, "OpenViewEx", argSets[0]))
+        {
+            return argSets[0][1] ?? throw new InvalidOperationException("OpenViewEx returned null.");
+        }
+
+        if (TryInvokeCom(session, "OpenViewEx", argSets[0]))
+        {
+            return argSets[0][1] ?? throw new InvalidOperationException("OpenViewEx returned null.");
+        }
+
+        throw new MissingMethodException("Unable to open view. Tried OpenView/OpenViewEx on DBLink and Session.");
     }
 
     private static bool TryInvokeCom(object target, string methodName, object?[] args)
