@@ -218,6 +218,36 @@ public sealed class Sage300Session : IDisposable
         {
             dynamic d = dbLink;
             object? view;
+            d.OpenView(out view, viewId);
+            if (view is not null)
+            {
+                return view;
+            }
+        }
+        catch (Exception ex)
+        {
+            errors.Add($"DBLink.OpenView(out view, viewId): {ex.Message}");
+        }
+
+        try
+        {
+            dynamic d = dbLink;
+            object? view = null;
+            d.OpenView(ref view, viewId);
+            if (view is not null)
+            {
+                return view;
+            }
+        }
+        catch (Exception ex)
+        {
+            errors.Add($"DBLink.OpenView(ref view, viewId): {ex.Message}");
+        }
+
+        try
+        {
+            dynamic d = dbLink;
+            object? view;
             d.OpenView(viewId, out view);
             if (view is not null)
             {
@@ -246,6 +276,36 @@ public sealed class Sage300Session : IDisposable
 
         if (TryParseNumericViewId(viewId, out var numericViewId))
         {
+            try
+            {
+                dynamic d = dbLink;
+                object? view;
+                d.OpenView(out view, numericViewId);
+                if (view is not null)
+                {
+                    return view;
+                }
+            }
+            catch (Exception ex)
+            {
+                errors.Add($"DBLink.OpenView(out view, intViewId): {ex.Message}");
+            }
+
+            try
+            {
+                dynamic d = dbLink;
+                object? view = null;
+                d.OpenView(ref view, numericViewId);
+                if (view is not null)
+                {
+                    return view;
+                }
+            }
+            catch (Exception ex)
+            {
+                errors.Add($"DBLink.OpenView(ref view, intViewId): {ex.Message}");
+            }
+
             try
             {
                 dynamic d = dbLink;
@@ -294,6 +354,25 @@ public sealed class Sage300Session : IDisposable
             if (!string.IsNullOrWhiteSpace(err))
             {
                 errors.Add($"DBLink.OpenView(viewId, out): {err}");
+            }
+        }
+
+        var reversedArgSets = new[]
+        {
+            new object?[] { null, viewId },
+            new object?[] { new object(), viewId },
+            new object?[] { DBNull.Value, viewId }
+        };
+
+        foreach (var args in reversedArgSets)
+        {
+            if (TryInvokeComWithResult(dbLink, "OpenView", args, out _, out err))
+            {
+                return args[0] ?? throw new InvalidOperationException("OpenView returned null.");
+            }
+            if (!string.IsNullOrWhiteSpace(err))
+            {
+                errors.Add($"DBLink.OpenView(out, viewId): {err}");
             }
         }
 
