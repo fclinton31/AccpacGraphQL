@@ -19,24 +19,10 @@ public sealed class Sage300Session : IDisposable
     {
         var configured = configuration["Sage300:ComSessionProgId"];
         var candidates = BuildProgIdCandidates(configured);
-        var (progId, type) = ResolveComType(candidates);
-        if (type is null || string.IsNullOrWhiteSpace(progId))
-        {
-            throw new InvalidOperationException($"Sage 300 COM ProgID not found. Tried: {string.Join(", ", candidates)}");
-        }
-
-        dynamic session = Activator.CreateInstance(type) ?? throw new InvalidOperationException("Unable to create Accpac session.");
+        var (progId, session) = CreateAndInitSession(candidates, configuration);
 
         var appId = configuration["Sage300:AppId"] ?? "XX";
         var appVersion = configuration["Sage300:AppVersion"] ?? "69A";
-
-        if (!TryInvokeCom(session, "Init", new object?[] { "", appId, appId + "1000", appVersion })
-            && !TryInvokeCom(session, "Init", new object?[] { "", appId, appId + "1000", appVersion, "" })
-            && !TryInvokeCom(session, "Init2", new object?[] { "", appId, appId + "1000", appVersion })
-            && !TryInvokeCom(session, "InitSession", new object?[] { "", appId, appId + "1000", appVersion }))
-        {
-            throw new MissingMethodException($"Sage 300 COM session init method not found. ProgID={progId}");
-        }
 
         var flags = int.TryParse(configuration["Sage300:DbLinkFlagsReadWrite"], out var f) ? f : 2;
         if (!TryInvokeCom(session, "Open", new object?[] { details.UserName, details.Password, details.CompanyId, DateTime.Today, flags })
@@ -63,6 +49,47 @@ public sealed class Sage300Session : IDisposable
             throw new InvalidOperationException("Unable to open Sage 300 DBLink (GetSessionIntDBLink/OpenDBLink not available).");
         }
         return new Sage300Session(session, dbLink);
+    }
+
+    private static (string ProgId, dynamic Session) CreateAndInitSession(IReadOnlyList<string> candidates, IConfiguration configuration)
+    {
+        var appId = configuration["Sage300:AppId"] ?? "XX";
+        var appVersion = configuration["Sage300:AppVersion"] ?? "69A";
+
+        foreach (var progId in candidates)
+        {
+            var type = Type.GetTypeFromProgID(progId, throwOnError: false);
+            if (type is null)
+            {
+                continue;
+            }
+
+            object? instance = null;
+            try
+            {
+                instance = Activator.CreateInstance(type);
+                if (instance is null)
+                {
+                    continue;
+                }
+
+                var session = (dynamic)instance;
+
+                if (TryInvokeCom(session, "Init", new object?[] { "", appId, appId + "1000", appVersion })
+                    || TryInvokeCom(session, "Init", new object?[] { "", appId, appId + "1000", appVersion, "" })
+                    || TryInvokeCom(session, "Init2", new object?[] { "", appId, appId + "1000", appVersion })
+                    || TryInvokeCom(session, "InitSession", new object?[] { "", appId, appId + "1000", appVersion }))
+                {
+                    return (progId, session);
+                }
+            }
+            catch
+            {
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"Sage 300 COM session init method not found on any configured ProgID. Tried: {string.Join(", ", candidates)}");
     }
 
     private static IReadOnlyList<string> BuildProgIdCandidates(string? configured)
