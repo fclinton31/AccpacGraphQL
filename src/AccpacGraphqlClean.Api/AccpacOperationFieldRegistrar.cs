@@ -1,4 +1,5 @@
 using AccpacGraphqlClean.Application;
+using HotChocolate.Authorization;
 using HotChocolate.Types;
 using Microsoft.AspNetCore.Http;
 
@@ -25,6 +26,7 @@ internal static class AccpacOperationFieldRegistrar
 
             var restRoute = endpoint.RestRoute;
             descriptor.Field(endpoint.GraphQlFieldName)
+                .Authorize()
                 .Argument("inputJson", a => a.Type<StringType>())
                 .Type<NonNullType<AccpacOperationResultType>>()
                 .Resolve(async context =>
@@ -39,4 +41,3 @@ internal static class AccpacOperationFieldRegistrar
         }
     }
 }
-

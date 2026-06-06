@@ -4,6 +4,7 @@ using AccpacGraphqlClean.Api;
 using AccpacGraphqlClean.Application;
 using AccpacGraphqlClean.Domain;
 using AccpacGraphqlClean.Infrastructure;
+using HotChocolate.Authorization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -22,7 +23,19 @@ builder.Services
     {
         var issuer = builder.Configuration["Jwt:Issuer"] ?? "AccpacGraphqlClean";
         var audience = builder.Configuration["Jwt:Audience"] ?? "AccpacGraphqlClean";
-        var signingKey = builder.Configuration["Jwt:SigningKey"] ?? "DEV_ONLY_CHANGE_ME_DEV_ONLY_CHANGE_ME";
+        var signingKey = builder.Configuration["Jwt:SigningKey"];
+        if (string.IsNullOrWhiteSpace(signingKey))
+        {
+            throw new InvalidOperationException("Jwt:SigningKey must be set in appsettings.json.");
+        }
+
+        if (!builder.Environment.IsDevelopment()
+            && (signingKey.Contains("DEV_ONLY_CHANGE_ME", StringComparison.OrdinalIgnoreCase)
+                || signingKey.Contains("REPLACE_ME", StringComparison.OrdinalIgnoreCase)
+                || signingKey.Length < 32))
+        {
+            throw new InvalidOperationException("Jwt:SigningKey must be set to a strong value in appsettings.json (>= 32 chars) for non-development environments.");
+        }
         if (signingKey.Length < 32)
         {
             signingKey = signingKey.PadRight(32, '0');
@@ -44,6 +57,7 @@ builder.Services.AddAuthorization();
 
 builder.Services
     .AddGraphQLServer()
+    .AddAuthorization()
     .AddType<AccpacOperationResultType>()
     .AddType<ProcessOutType>()
     .AddQueryType<Query>()
@@ -158,6 +172,14 @@ public sealed class Mutation
         ITokenService tokenService,
         CancellationToken cancellationToken)
     {
+        if (string.IsNullOrWhiteSpace(input.CompanyKey))
+        {
+            throw new GraphQLException(ErrorBuilder.New()
+                .SetMessage("companyKey is required.")
+                .SetCode("AUTH_MISSING_COMPANYKEY")
+                .Build());
+        }
+
         var (isValid, email, roles) = await validator.ValidateAsync(input.UserName, input.Password, cancellationToken);
         if (!isValid)
         {

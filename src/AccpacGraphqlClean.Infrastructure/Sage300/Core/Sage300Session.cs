@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.InteropServices;
 using AccpacGraphqlClean.Domain;
 using Microsoft.Extensions.Configuration;
 
@@ -37,7 +38,11 @@ public sealed class Sage300Session : IDisposable
         var dbLinkFlags = flags;
 
         object? dbLink = null;
-        if (TryInvokeCom(session, "GetSessionIntDBLink", new object?[] { dbLinkType, dbLinkFlags }, out object? getLink) && getLink is not null)
+        if (TryInvokeCom(session, "GetDBLink", new object?[] { dbLinkType, dbLinkFlags }, out object? getDbLink) && getDbLink is not null)
+        {
+            dbLink = getDbLink;
+        }
+        else if (TryInvokeCom(session, "GetSessionIntDBLink", new object?[] { dbLinkType, dbLinkFlags }, out object? getLink) && getLink is not null)
         {
             dbLink = getLink;
         }
@@ -327,6 +332,36 @@ public sealed class Sage300Session : IDisposable
     {
         var errors = new List<string>();
 
+        if (TryInvokeOpenViewViaIDispatch(dbLink, viewId, out var dispatchView, out var dispatchErr) && dispatchView is not null)
+        {
+            return dispatchView;
+        }
+        if (!string.IsNullOrWhiteSpace(dispatchErr))
+        {
+            errors.Add($"DBLink.OpenView(IDispatch): {dispatchErr}");
+        }
+
+        if (TryInvokeComWithResult(dbLink, "OpenView", new object?[] { viewId }, out var directView, out var directErr) && directView is not null)
+        {
+            return directView;
+        }
+        if (!string.IsNullOrWhiteSpace(directErr))
+        {
+            errors.Add($"DBLink.OpenView(viewId): {directErr}");
+        }
+
+        if (TryParseNumericViewId(viewId, out var numericDirectViewId))
+        {
+            if (TryInvokeComWithResult(dbLink, "OpenView", new object?[] { numericDirectViewId }, out var directNumericView, out var directNumericErr) && directNumericView is not null)
+            {
+                return directNumericView;
+            }
+            if (!string.IsNullOrWhiteSpace(directNumericErr))
+            {
+                errors.Add($"DBLink.OpenView(intViewId): {directNumericErr}");
+            }
+        }
+
         try
         {
             dynamic d = dbLink;
@@ -450,6 +485,27 @@ public sealed class Sage300Session : IDisposable
             }
         }
 
+        if (TryInvokeComWithResult(session, "OpenView", new object?[] { viewId }, out var sessionDirectView, out var sessionDirectErr) && sessionDirectView is not null)
+        {
+            return sessionDirectView;
+        }
+        if (!string.IsNullOrWhiteSpace(sessionDirectErr))
+        {
+            errors.Add($"Session.OpenView(viewId): {sessionDirectErr}");
+        }
+
+        if (TryParseNumericViewId(viewId, out var numericSessionViewId))
+        {
+            if (TryInvokeComWithResult(session, "OpenView", new object?[] { numericSessionViewId }, out var sessionDirectNumericView, out var sessionDirectNumericErr) && sessionDirectNumericView is not null)
+            {
+                return sessionDirectNumericView;
+            }
+            if (!string.IsNullOrWhiteSpace(sessionDirectNumericErr))
+            {
+                errors.Add($"Session.OpenView(intViewId): {sessionDirectNumericErr}");
+            }
+        }
+
         string? err = null;
         var argSets = new[]
         {
@@ -524,6 +580,163 @@ public sealed class Sage300Session : IDisposable
             $"Unable to open view '{viewId}'. ProgID={progId}. DBLinkType={dbLink.GetType().FullName}.{suffix}");
     }
 
+    [ComImport]
+    [Guid("00020400-0000-0000-C000-000000000046")]
+    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IDispatch
+    {
+        void GetTypeInfoCount(out uint pctinfo);
+        void GetTypeInfo(uint iTInfo, uint lcid, out IntPtr ppTInfo);
+        void GetIDsOfNames(ref Guid riid, IntPtr rgszNames, uint cNames, uint lcid, IntPtr rgDispId);
+        void Invoke(int dispIdMember, ref Guid riid, uint lcid, short wFlags, IntPtr pDispParams, IntPtr pVarResult, IntPtr pExcepInfo, IntPtr puArgErr);
+    }
+
+    [StructLayout(LayoutKind.Explicit)]
+    private struct Variant
+    {
+        [FieldOffset(0)] public ushort vt;
+        [FieldOffset(2)] public ushort wReserved1;
+        [FieldOffset(4)] public ushort wReserved2;
+        [FieldOffset(6)] public ushort wReserved3;
+        [FieldOffset(8)] public IntPtr data1;
+        [FieldOffset(8)] public long data8;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct DispParams
+    {
+        public IntPtr rgvarg;
+        public IntPtr rgdispidNamedArgs;
+        public int cArgs;
+        public int cNamedArgs;
+    }
+
+    private const short DispatchMethod = 1;
+    private const ushort VtByRef = 0x4000;
+
+    private static bool TryInvokeOpenViewViaIDispatch(object target, string viewId, out object? view, out string? error)
+    {
+        view = null;
+        error = null;
+
+        try
+        {
+            if (target is not IDispatch dispatch)
+            {
+                error = "Target does not implement IDispatch";
+                return false;
+            }
+
+            var dispId = GetDispId(dispatch, "OpenView");
+            if (dispId is null)
+            {
+                error = "OpenView DISPID not found";
+                return false;
+            }
+
+            var outStorage = Marshal.AllocCoTaskMem(IntPtr.Size);
+            Marshal.WriteIntPtr(outStorage, IntPtr.Zero);
+
+            var bstr = Marshal.StringToBSTR(viewId);
+            try
+            {
+                var argCount = 2;
+                var size = Marshal.SizeOf<Variant>();
+                var pArgs = Marshal.AllocCoTaskMem(size * argCount);
+
+                try
+                {
+                    var inVar = new Variant { vt = (ushort)VarEnum.VT_BSTR, data1 = bstr };
+
+                    foreach (var vt in new[]
+                             {
+                                 (ushort)(VtByRef | (ushort)VarEnum.VT_DISPATCH),
+                                 (ushort)(VtByRef | (ushort)VarEnum.VT_UNKNOWN),
+                                 (ushort)(VtByRef | (ushort)(Environment.Is64BitProcess ? VarEnum.VT_I8 : VarEnum.VT_I4))
+                             })
+                    {
+                        Marshal.WriteIntPtr(outStorage, IntPtr.Zero);
+                        var outVar = new Variant { vt = vt, data1 = outStorage };
+
+                        Marshal.StructureToPtr(outVar, pArgs, fDeleteOld: false);
+                        Marshal.StructureToPtr(inVar, IntPtr.Add(pArgs, size), fDeleteOld: false);
+
+                        var dp = new DispParams { cArgs = argCount, cNamedArgs = 0, rgvarg = pArgs, rgdispidNamedArgs = IntPtr.Zero };
+                        var pDispParams = Marshal.AllocCoTaskMem(Marshal.SizeOf<DispParams>());
+                        try
+                        {
+                            Marshal.StructureToPtr(dp, pDispParams, fDeleteOld: false);
+                            var riid = Guid.Empty;
+                            dispatch.Invoke(dispId.Value, ref riid, 0, DispatchMethod, pDispParams, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+
+                            var outPtr = Marshal.ReadIntPtr(outStorage);
+                            if (outPtr != IntPtr.Zero)
+                            {
+                                try
+                                {
+                                    view = Marshal.GetObjectForIUnknown(outPtr);
+                                    _ = Marshal.Release(outPtr);
+                                    return true;
+                                }
+                                catch
+                                {
+                                    view = outPtr;
+                                    return true;
+                                }
+                            }
+                        }
+                        finally
+                        {
+                            Marshal.FreeCoTaskMem(pDispParams);
+                        }
+                    }
+
+                    error = "IDispatch.Invoke succeeded but returned null pointer";
+                    return false;
+                }
+                finally
+                {
+                    Marshal.FreeCoTaskMem(pArgs);
+                }
+            }
+            finally
+            {
+                Marshal.FreeBSTR(bstr);
+                Marshal.FreeCoTaskMem(outStorage);
+            }
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            return false;
+        }
+    }
+
+    private static int? GetDispId(IDispatch dispatch, string name)
+    {
+        var riid = Guid.Empty;
+        var namePtr = Marshal.StringToCoTaskMemUni(name);
+        var names = Marshal.AllocCoTaskMem(IntPtr.Size);
+        var dispIds = Marshal.AllocCoTaskMem(sizeof(int));
+
+        try
+        {
+            Marshal.WriteIntPtr(names, namePtr);
+            dispatch.GetIDsOfNames(ref riid, names, 1, 0, dispIds);
+            return Marshal.ReadInt32(dispIds);
+        }
+        catch
+        {
+            return null;
+        }
+        finally
+        {
+            Marshal.FreeCoTaskMem(dispIds);
+            Marshal.FreeCoTaskMem(names);
+            Marshal.FreeCoTaskMem(namePtr);
+        }
+    }
+
     private static bool TryParseNumericViewId(string viewId, out int numericViewId)
     {
         numericViewId = 0;
@@ -547,7 +760,7 @@ public sealed class Sage300Session : IDisposable
         {
             _ = target.GetType().InvokeMember(
                 methodName,
-                BindingFlags.InvokeMethod | BindingFlags.Public | BindingFlags.Instance,
+                BindingFlags.InvokeMethod | BindingFlags.Public | BindingFlags.Instance | BindingFlags.OptionalParamBinding,
                 binder: null,
                 target: target,
                 args: args);
@@ -565,7 +778,7 @@ public sealed class Sage300Session : IDisposable
         {
             result = target.GetType().InvokeMember(
                 methodName,
-                BindingFlags.InvokeMethod | BindingFlags.Public | BindingFlags.Instance,
+                BindingFlags.InvokeMethod | BindingFlags.Public | BindingFlags.Instance | BindingFlags.OptionalParamBinding,
                 binder: null,
                 target: target,
                 args: args);
@@ -584,7 +797,7 @@ public sealed class Sage300Session : IDisposable
         {
             result = target.GetType().InvokeMember(
                 methodName,
-                BindingFlags.InvokeMethod | BindingFlags.Public | BindingFlags.Instance,
+                BindingFlags.InvokeMethod | BindingFlags.Public | BindingFlags.Instance | BindingFlags.OptionalParamBinding,
                 binder: null,
                 target: target,
                 args: args);

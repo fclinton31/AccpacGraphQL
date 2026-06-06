@@ -19,7 +19,7 @@ public sealed class EfCompanyConnectionDetailsProvider : ICompanyConnectionDetai
         var companyKey = user.Claims.FirstOrDefault(c => c.Type == "CmpKey")?.Value;
         if (string.IsNullOrWhiteSpace(companyKey))
         {
-            throw new InvalidOperationException("Missing CmpKey claim.");
+            throw new InvalidOperationException("Missing CmpKey claim. Login must include companyKey and requests must send Authorization: Bearer <token>.");
         }
 
         var normalizedKey = SettingsSqlite.NormalizeCompanyKey(companyKey);

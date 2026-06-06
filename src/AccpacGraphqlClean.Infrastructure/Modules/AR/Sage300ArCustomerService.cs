@@ -69,7 +69,8 @@ public sealed class Sage300ArCustomerService : IArCustomerService
             }
 
             session.CommitTransaction(tran);
-            var response = ProcessOut.Ok($"Sage 300 AR Customer : {customer.CustomerNumber000}", documentNumber: customer.CustomerNumber000);
+            customer.Compid = details.CompanyId;
+            var response = ProcessOut.Ok($"Sage 300 AR Customer Number : {customer.CustomerNumber000}", documentNumber: customer.CustomerNumber000);
             return (response, customer);
         }
         catch (Exception ex)
@@ -109,9 +110,10 @@ public sealed class Sage300ArCustomerService : IArCustomerService
             view.Read();
             var customer = SageViewEntityMapper.ReadEntityFromView<ARCustomers>(view);
             customer.CustomerNumber000 = customerNumber;
+            customer.Compid = details.CompanyId;
             session.CommitTransaction(tran);
 
-            var response = ProcessOut.Ok($"Sage 300 AR Customer : {customerNumber}", documentNumber: customerNumber);
+            var response = ProcessOut.Ok($"Sage 300 AR Customer Number : {customerNumber}", documentNumber: customerNumber);
             return (response, customer);
         }
         catch (Exception ex)

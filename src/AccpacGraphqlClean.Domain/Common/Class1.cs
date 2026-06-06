@@ -11,7 +11,7 @@ public sealed record ProcessOut(
 {
     public static ProcessOut Ok(string message = "OK", string? documentNumber = null) =>
         new("0000", message, DocumentNumber: documentNumber, ErrorCode: "0000");
-    public static ProcessOut Fail(string code, string message) => new(code, message);
+    public static ProcessOut Fail(string code, string message) => new(code, message, ErrorCode: code);
 }
 
 public sealed record AccpacOperationResult(ProcessOut Response, object? Data);
