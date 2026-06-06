@@ -11,3 +11,5 @@ obj/
 TestResults/
 artifacts/
 **/appsettings.Development.json
+**/logs/
+*.log

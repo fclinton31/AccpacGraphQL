@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text;
+using System.Text.Json;
 using AccpacGraphqlClean.Api;
 using AccpacGraphqlClean.Application;
 using AccpacGraphqlClean.Domain;
@@ -66,6 +67,8 @@ builder.Services
     .AddGraphQLServer()
     .AddAuthorization()
     .AddType<AccpacOperationResultType>()
+    .AddType<AccpacDataType>()
+    .AddType<SageRecordType>()
     .AddType<ProcessOutType>()
     .AddQueryType<Query>()
     .AddTypeExtension<AccpacQueryOperationsTypeExtension>()
@@ -151,6 +154,64 @@ public sealed class Query
 
     public IReadOnlyList<AccpacEndpointDefinition> accpacEndpoints([Service] IAccpacEndpointCatalog catalog) =>
         catalog.Endpoints;
+
+    [Authorize]
+    public async Task<AccpacOperationResultOf<ARCustomerReadData>> arcustomerReadarcustomer(
+        string inputJson,
+        ClaimsPrincipal user,
+        [Service] IArCustomerService service,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(inputJson))
+        {
+            throw new GraphQLException(ErrorBuilder.New()
+                .SetMessage("inputJson is required.")
+                .SetCode("INPUT_REQUIRED")
+                .Build());
+        }
+
+        using var doc = JsonDocument.Parse(inputJson);
+        string? customerNumber = null;
+
+        if (doc.RootElement.ValueKind == JsonValueKind.Object)
+        {
+            if (doc.RootElement.TryGetProperty("CustomerNumber000", out var cn) && cn.ValueKind == JsonValueKind.String)
+            {
+                customerNumber = cn.GetString();
+            }
+            else if (doc.RootElement.TryGetProperty("CustomerNumber000", out cn) && cn.ValueKind is JsonValueKind.Number or JsonValueKind.True or JsonValueKind.False)
+            {
+                customerNumber = cn.ToString();
+            }
+            else if (doc.RootElement.TryGetProperty("customerNumber", out var cn2) && cn2.ValueKind == JsonValueKind.String)
+            {
+                customerNumber = cn2.GetString();
+            }
+            else if (doc.RootElement.TryGetProperty("customerNumber", out cn2) && cn2.ValueKind is JsonValueKind.Number or JsonValueKind.True or JsonValueKind.False)
+            {
+                customerNumber = cn2.ToString();
+            }
+        }
+        else if (doc.RootElement.ValueKind == JsonValueKind.String)
+        {
+            customerNumber = doc.RootElement.GetString();
+        }
+        else if (doc.RootElement.ValueKind is JsonValueKind.Number or JsonValueKind.True or JsonValueKind.False)
+        {
+            customerNumber = doc.RootElement.ToString();
+        }
+
+        if (string.IsNullOrWhiteSpace(customerNumber))
+        {
+            throw new GraphQLException(ErrorBuilder.New()
+                .SetMessage("CustomerNumber000 is required. Example inputJson: {\"CustomerNumber000\":\"1200\"} or \"1200\".")
+                .SetCode("INPUT_REQUIRED")
+                .Build());
+        }
+
+        var (response, customer) = await service.ReadAsync(customerNumber, user, cancellationToken);
+        return new AccpacOperationResultOf<ARCustomerReadData>(response, new ARCustomerReadData(customer));
+    }
 
     public Task<AccpacOperationResult> accpac(
         string restRoute,

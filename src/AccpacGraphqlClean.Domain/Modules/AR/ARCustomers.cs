@@ -1,5 +1,7 @@
 namespace AccpacGraphqlClean.Domain;
 
+public sealed record ARCustomerReadData(ARCustomers Customer);
+
 public sealed class ARCustomers
 {
     public string? Compid { get; set; }

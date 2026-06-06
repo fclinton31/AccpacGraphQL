@@ -24,6 +24,12 @@ internal static class AccpacOperationFieldRegistrar
                 continue;
             }
 
+            if (kind == AccpacOperationKind.Query
+                && string.Equals(endpoint.RestRoute, "api/ARCustomer/ReadARCustomer", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
             var restRoute = endpoint.RestRoute;
             descriptor.Field(endpoint.GraphQlFieldName)
                 .Authorize()
