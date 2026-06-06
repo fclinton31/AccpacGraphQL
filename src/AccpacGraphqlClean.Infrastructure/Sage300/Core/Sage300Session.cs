@@ -8,9 +8,11 @@ public sealed class Sage300Session : IDisposable
 {
     private readonly dynamic _session;
     private readonly object _dbLink;
+    private readonly string _progId;
 
-    private Sage300Session(dynamic session, object dbLink)
+    private Sage300Session(string progId, dynamic session, object dbLink)
     {
+        _progId = progId;
         _session = session;
         _dbLink = dbLink;
     }
@@ -48,7 +50,7 @@ public sealed class Sage300Session : IDisposable
         {
             throw new InvalidOperationException("Unable to open Sage 300 DBLink (GetSessionIntDBLink/OpenDBLink not available).");
         }
-        return new Sage300Session(session, dbLink);
+        return new Sage300Session(progId, session, dbLink);
     }
 
     private static (string ProgId, dynamic Session) CreateAndInitSession(IReadOnlyList<string> candidates, IConfiguration configuration)
@@ -153,7 +155,7 @@ public sealed class Sage300Session : IDisposable
 
     public dynamic OpenView(string viewId)
     {
-        return InvokeOpenView(_dbLink, _session, viewId);
+        return InvokeOpenView(_dbLink, _session, _progId, viewId);
     }
 
     public int BeginTransaction()
@@ -208,17 +210,26 @@ public sealed class Sage300Session : IDisposable
         throw new MissingMethodException("Unable to rollback transaction. Tried TransactionRollback/RollbackTransaction on DBLink and Session.");
     }
 
-    private static object InvokeOpenView(object dbLink, object session, string viewId)
+    private static object InvokeOpenView(object dbLink, object session, string progId, string viewId)
     {
-        object? direct;
-        if (TryInvokeCom(dbLink, "OpenView", new object?[] { viewId }, out direct) && direct is not null)
+        var errors = new List<string>();
+
+        if (TryInvokeComWithResult(dbLink, "OpenView", new object?[] { viewId }, out var direct, out var err) && direct is not null)
         {
             return direct;
         }
+        if (!string.IsNullOrWhiteSpace(err))
+        {
+            errors.Add($"DBLink.OpenView(viewId): {err}");
+        }
 
-        if (TryInvokeCom(session, "OpenView", new object?[] { viewId }, out direct) && direct is not null)
+        if (TryInvokeComWithResult(session, "OpenView", new object?[] { viewId }, out direct, out err) && direct is not null)
         {
             return direct;
+        }
+        if (!string.IsNullOrWhiteSpace(err))
+        {
+            errors.Add($"Session.OpenView(viewId): {err}");
         }
 
         var argSets = new[]
@@ -230,31 +241,49 @@ public sealed class Sage300Session : IDisposable
 
         foreach (var args in argSets)
         {
-            if (TryInvokeCom(dbLink, "OpenView", args))
+            if (TryInvokeComWithResult(dbLink, "OpenView", args, out _, out err))
             {
                 return args.Length > 1 && args[1] is not null ? args[1]! : throw new InvalidOperationException("OpenView returned null.");
+            }
+            if (!string.IsNullOrWhiteSpace(err))
+            {
+                errors.Add($"DBLink.OpenView(viewId, out): {err}");
             }
         }
 
         foreach (var args in argSets)
         {
-            if (TryInvokeCom(session, "OpenView", args))
+            if (TryInvokeComWithResult(session, "OpenView", args, out _, out err))
             {
                 return args.Length > 1 && args[1] is not null ? args[1]! : throw new InvalidOperationException("OpenView returned null.");
             }
+            if (!string.IsNullOrWhiteSpace(err))
+            {
+                errors.Add($"Session.OpenView(viewId, out): {err}");
+            }
         }
 
-        if (TryInvokeCom(dbLink, "OpenViewEx", argSets[0]))
+        if (TryInvokeComWithResult(dbLink, "OpenViewEx", argSets[0], out _, out err))
         {
             return argSets[0][1] ?? throw new InvalidOperationException("OpenViewEx returned null.");
         }
+        if (!string.IsNullOrWhiteSpace(err))
+        {
+            errors.Add($"DBLink.OpenViewEx(viewId, out): {err}");
+        }
 
-        if (TryInvokeCom(session, "OpenViewEx", argSets[0]))
+        if (TryInvokeComWithResult(session, "OpenViewEx", argSets[0], out _, out err))
         {
             return argSets[0][1] ?? throw new InvalidOperationException("OpenViewEx returned null.");
         }
+        if (!string.IsNullOrWhiteSpace(err))
+        {
+            errors.Add($"Session.OpenViewEx(viewId, out): {err}");
+        }
 
-        throw new MissingMethodException("Unable to open view. Tried OpenView/OpenViewEx on DBLink and Session.");
+        var suffix = errors.Count == 0 ? string.Empty : " Errors: " + string.Join(" | ", errors.Distinct());
+        throw new InvalidOperationException(
+            $"Unable to open view '{viewId}'. ProgID={progId}. DBLinkType={dbLink.GetType().FullName}.{suffix}");
     }
 
     private static bool TryInvokeCom(object target, string methodName, object?[] args)
@@ -290,6 +319,33 @@ public sealed class Sage300Session : IDisposable
         catch
         {
             result = null;
+            return false;
+        }
+    }
+
+    private static bool TryInvokeComWithResult(object target, string methodName, object?[] args, out object? result, out string? error)
+    {
+        try
+        {
+            result = target.GetType().InvokeMember(
+                methodName,
+                BindingFlags.InvokeMethod | BindingFlags.Public | BindingFlags.Instance,
+                binder: null,
+                target: target,
+                args: args);
+            error = null;
+            return true;
+        }
+        catch (TargetInvocationException tie) when (tie.InnerException is not null)
+        {
+            result = null;
+            error = tie.InnerException.Message;
+            return false;
+        }
+        catch (Exception ex)
+        {
+            result = null;
+            error = ex.Message;
             return false;
         }
     }
