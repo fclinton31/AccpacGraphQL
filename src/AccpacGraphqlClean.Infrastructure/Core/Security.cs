@@ -57,7 +57,12 @@ internal static class SettingsSqlite
     public static string GetSettingsConnectionString(IConfiguration configuration)
     {
         var connectionString = configuration.GetConnectionString("SettingsDb");
-        return string.IsNullOrWhiteSpace(connectionString) ? "Data Source=settings.db" : connectionString;
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new InvalidOperationException("Missing ConnectionStrings:SettingsDb in appsettings.json.");
+        }
+
+        return connectionString;
     }
 
     public static async Task<UserRecord?> TryGetUserAsync(
@@ -117,7 +122,7 @@ internal static class SettingsSqlite
         string companyKey,
         CancellationToken cancellationToken)
     {
-        companyKey = companyKey.Trim().Replace("\r", string.Empty).Replace("\n", string.Empty);
+        companyKey = NormalizeCompanyKey(companyKey);
         var connectionString = GetSettingsConnectionString(configuration);
 
         await using var conn = new SqliteConnection(connectionString);
@@ -163,6 +168,9 @@ internal static class SettingsSqlite
 
         return new CompanyRecord(companyId, user, pass);
     }
+
+    public static string NormalizeCompanyKey(string companyKey) =>
+        (companyKey ?? string.Empty).Trim().Replace("\r", string.Empty).Replace("\n", string.Empty);
 
     private static async Task<string?> ResolveUserTableAsync(SqliteConnection conn, CancellationToken cancellationToken)
     {
@@ -313,7 +321,7 @@ public sealed class JwtTokenService : ITokenService
 
         if (!string.IsNullOrWhiteSpace(companyKey))
         {
-            claims.Add(new Claim("CmpKey", companyKey));
+            claims.Add(new Claim("CmpKey", SettingsSqlite.NormalizeCompanyKey(companyKey)));
         }
 
         foreach (var role in roles.Distinct(StringComparer.OrdinalIgnoreCase))

@@ -22,12 +22,29 @@ public sealed class EfCompanyConnectionDetailsProvider : ICompanyConnectionDetai
             throw new InvalidOperationException("Missing CmpKey claim.");
         }
 
-        var company = await SettingsSqlite.TryGetCompanyByKeyAsync(_configuration, companyKey, cancellationToken);
+        var normalizedKey = SettingsSqlite.NormalizeCompanyKey(companyKey);
+        var company = await SettingsSqlite.TryGetCompanyByKeyAsync(_configuration, normalizedKey, cancellationToken);
         if (company is null)
         {
-            throw new InvalidOperationException("Unknown company key.");
+            var cs = SettingsSqlite.GetSettingsConnectionString(_configuration);
+            throw new InvalidOperationException($"Unknown company key. SettingsDb={cs}; CmpKey={Mask(normalizedKey)}");
         }
 
         return new CompanyConnectionDetails(company.CompanyId, company.UserName, company.Password);
+    }
+
+    private static string Mask(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "<empty>";
+        }
+
+        if (value.Length <= 10)
+        {
+            return value[0] + "***" + value[^1];
+        }
+
+        return value[..6] + "..." + value[^4..];
     }
 }

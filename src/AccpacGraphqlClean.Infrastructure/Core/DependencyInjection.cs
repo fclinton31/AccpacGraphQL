@@ -18,7 +18,7 @@ public static class DependencyInjection
             var connectionString = configuration.GetConnectionString("SettingsDb");
             if (string.IsNullOrWhiteSpace(connectionString))
             {
-                connectionString = "Data Source=settings.db";
+                throw new InvalidOperationException("Missing ConnectionStrings:SettingsDb in appsettings.json.");
             }
 
             options.UseSqlite(connectionString);
