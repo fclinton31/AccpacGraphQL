@@ -58,6 +58,38 @@ public sealed class Sage300Session : IDisposable
         var appId = configuration["Sage300:AppId"] ?? "XX";
         var appVersion = configuration["Sage300:AppVersion"] ?? "69A";
 
+        static IEnumerable<object?[]> InitArgSets(string appId, string appVersion)
+        {
+            var programId = appId + "1000";
+            return new[]
+            {
+                new object?[] { "", appId, programId, appVersion },
+                new object?[] { "", appId, programId, appVersion, "" },
+                new object?[] { "", appId, programId, appVersion, "ENG" },
+                new object?[] { "", appId, programId, appVersion, "EN" },
+                new object?[] { "", appId, programId, appVersion, null },
+                new object?[] { "", appId, programId, appVersion, 0 }
+            };
+        }
+
+        static IEnumerable<(string Name, object?[] Args)> InitCalls(string appId, string appVersion)
+        {
+            foreach (var args in InitArgSets(appId, appVersion))
+            {
+                yield return ("Init", args);
+            }
+
+            foreach (var args in InitArgSets(appId, appVersion))
+            {
+                yield return ("Init2", args);
+            }
+
+            foreach (var args in InitArgSets(appId, appVersion))
+            {
+                yield return ("InitSession", args);
+            }
+        }
+
         foreach (var progId in candidates)
         {
             var type = Type.GetTypeFromProgID(progId, throwOnError: false);
@@ -77,12 +109,14 @@ public sealed class Sage300Session : IDisposable
 
                 var session = (dynamic)instance;
 
-                if (TryInvokeCom(session, "Init", new object?[] { "", appId, appId + "1000", appVersion })
-                    || TryInvokeCom(session, "Init", new object?[] { "", appId, appId + "1000", appVersion, "" })
-                    || TryInvokeCom(session, "Init2", new object?[] { "", appId, appId + "1000", appVersion })
-                    || TryInvokeCom(session, "InitSession", new object?[] { "", appId, appId + "1000", appVersion }))
+                foreach (var (name, args) in InitCalls(appId, appVersion))
                 {
-                    return (progId, session);
+                    object? ignoredResult;
+                    string? ignoredError;
+                    if (TryInvokeComWithResult(session, name, args, out ignoredResult, out ignoredError))
+                    {
+                        return (progId, session);
+                    }
                 }
             }
             catch
@@ -91,8 +125,61 @@ public sealed class Sage300Session : IDisposable
         }
 
         var arch = Environment.Is64BitProcess ? "x64" : "x86";
+        var diagnostics = new List<string>();
+
+        foreach (var progId in candidates)
+        {
+            var type = Type.GetTypeFromProgID(progId, throwOnError: false);
+            if (type is null)
+            {
+                diagnostics.Add($"{progId}: ProgID not registered for this process");
+                continue;
+            }
+
+            try
+            {
+                var instance = Activator.CreateInstance(type);
+                if (instance is null)
+                {
+                    diagnostics.Add($"{progId}: Activator.CreateInstance returned null");
+                    continue;
+                }
+
+                var session = (dynamic)instance;
+                var firstErrors = new List<string>();
+                foreach (var (name, args) in InitCalls(appId, appVersion))
+                {
+                    object? ignoredResult;
+                    string? err;
+                    if (TryInvokeComWithResult(session, name, args, out ignoredResult, out err))
+                    {
+                        diagnostics.Add($"{progId}: Init OK via {name}({args.Length} args)");
+                        break;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(err))
+                    {
+                        firstErrors.Add($"{name}({args.Length}): {err}");
+                    }
+
+                    if (firstErrors.Count >= 3)
+                    {
+                        break;
+                    }
+                }
+
+                if (firstErrors.Count > 0 && !diagnostics.Any(d => d.StartsWith(progId + ":", StringComparison.OrdinalIgnoreCase) && d.Contains("Init OK", StringComparison.OrdinalIgnoreCase)))
+                {
+                    diagnostics.Add($"{progId}: " + string.Join(" | ", firstErrors));
+                }
+            }
+            catch
+            {
+            }
+        }
+
         throw new InvalidOperationException(
-            $"Sage 300 COM session init method not found on any configured ProgID. Tried: {string.Join(", ", candidates)}. ProcessArch={arch}. If Sage COM is 32-bit, run the API as win-x86.");
+            $"Sage 300 COM session init method not found on any configured ProgID. Tried: {string.Join(", ", candidates)}. ProcessArch={arch}. Details: {string.Join(" || ", diagnostics)}");
     }
 
     private static IReadOnlyList<string> BuildProgIdCandidates(string? configured)
