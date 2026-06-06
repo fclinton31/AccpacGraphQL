@@ -31,12 +31,30 @@ public sealed class Sage300Session : IDisposable
         var appVersion = configuration["Sage300:AppVersion"] ?? "69A";
 
         session.Init("", appId, appId + "1000", appVersion);
-        session.Open(details.UserName, details.Password, details.CompanyId, DateTime.Today, 0, "");
+        var flags = int.TryParse(configuration["Sage300:DbLinkFlagsReadWrite"], out var f) ? f : 2;
+        if (!TryInvokeCom(session, "Open", new object?[] { details.UserName, details.Password, details.CompanyId, DateTime.Today, flags })
+            && !TryInvokeCom(session, "Open", new object?[] { details.UserName, details.Password, details.CompanyId, DateTime.Today, 0, "" }))
+        {
+            throw new InvalidOperationException("Unable to open Sage 300 session (Open method not found for known signatures).");
+        }
 
         var dbLinkType = int.TryParse(configuration["Sage300:DbLinkTypeCompany"], out var t) ? t : 1;
-        var dbLinkFlags = int.TryParse(configuration["Sage300:DbLinkFlagsReadWrite"], out var f) ? f : 2;
+        var dbLinkFlags = flags;
 
-        object dbLink = session.OpenDBLink(dbLinkType, dbLinkFlags);
+        object? dbLink = null;
+        if (TryInvokeCom(session, "GetSessionIntDBLink", new object?[] { dbLinkType, dbLinkFlags }, out object? getLink) && getLink is not null)
+        {
+            dbLink = getLink;
+        }
+        else if (TryInvokeCom(session, "OpenDBLink", new object?[] { dbLinkType, dbLinkFlags }, out object? openLink) && openLink is not null)
+        {
+            dbLink = openLink;
+        }
+
+        if (dbLink is null)
+        {
+            throw new InvalidOperationException("Unable to open Sage 300 DBLink (GetSessionIntDBLink/OpenDBLink not available).");
+        }
         return new Sage300Session(session, dbLink);
     }
 
