@@ -117,6 +117,7 @@ internal static class SettingsSqlite
         string companyKey,
         CancellationToken cancellationToken)
     {
+        companyKey = companyKey.Trim().Replace("\r", string.Empty).Replace("\n", string.Empty);
         var connectionString = GetSettingsConnectionString(configuration);
 
         await using var conn = new SqliteConnection(connectionString);
@@ -140,7 +141,7 @@ internal static class SettingsSqlite
         }
 
         var sql =
-            $"SELECT {companyIdCol}, {userNameCol}, {passwordCol} FROM \"{companyTable}\" WHERE {companyKeyCol}=$companyKey LIMIT 1";
+            $"SELECT {companyIdCol}, {userNameCol}, {passwordCol} FROM \"{companyTable}\" WHERE trim({companyKeyCol})=$companyKey LIMIT 1";
 
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = sql;
