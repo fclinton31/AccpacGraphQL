@@ -61,7 +61,8 @@ public sealed class AccpacData
 
     public ARAgedAnalysis? AgedAnalysis { get; set; }
     public ARStatementRun? StatementRun { get; set; }
-
+    // AR Open Documents (GetDocuments)
+    public AROpenInvoices? OpenInvoices { get; set; }
     public SageRecord? Account { get; set; }
     public SageRecord? JournalEntry { get; set; }
     public SageRecord? RecurringEntry { get; set; }
